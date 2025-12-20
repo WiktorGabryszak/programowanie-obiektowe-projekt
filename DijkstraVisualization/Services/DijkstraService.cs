@@ -65,8 +65,9 @@ namespace DijkstraVisualization.Services
 
             stopwatch.Stop();
 
-            if (double.IsInfinity(distances[endId]))
+            if (double.IsInfinity(distances[endId]) || !visited.Contains(endId))
             {
+                result.TotalCost = distances[endId];
                 result.ExecutionTime = stopwatch.Elapsed;
                 return result;
             }
