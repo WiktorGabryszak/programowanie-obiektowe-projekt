@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using DijkstraVisualization.Services;
 using DijkstraVisualization.ViewModels;
 using DijkstraVisualization.Views;
 
@@ -25,7 +26,7 @@ namespace DijkstraVisualization
                 DisableAvaloniaDataAnnotationValidation();
                 desktop.MainWindow = new MainWindow
                 {
-                    DataContext = new MainWindowViewModel(),
+                    DataContext = new MainViewModel(new DijkstraService()),
                 };
             }
 
