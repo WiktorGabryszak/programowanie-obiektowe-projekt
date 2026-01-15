@@ -69,11 +69,11 @@
                             TickFrequency="0.1"
                             IsSnapToTickEnabled="True"
                             VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding AnimationInterval, StringFormat={}{0:F1}s}"
+                    <TextBlock Text="{Binding AnimationInterval, Converter={x:Static vm:AnimationSpeedConverter.Instance}}"
                                Foreground="White"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               Width="35"/>
+                               Width="50"/>
                 </StackPanel>
 
                 <Panel Grid.Column="1"/>
