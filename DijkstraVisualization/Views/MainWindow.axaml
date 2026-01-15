@@ -1,19 +1,112 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:DijkstraVisualization.ViewModels"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="DijkstraVisualization.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="DijkstraVisualization">
+        Title="Dijkstra Visualizer"
+        Background="#0f0f23"
+        MinWidth="800"
+        MinHeight="600">
 
-    <Design.DataContext>
-        <!-- Use a design-time placeholder without invoking the runtime-only constructor -->
-        <d:DesignInstance Type="vm:MainViewModel" IsDesignTimeCreatable="False" />
-    </Design.DataContext>
 
-    <TextBlock Text="Dijkstra Visualizer" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
+
+    <Grid RowDefinitions="*,Auto">
+        <!-- Main Canvas Area with Pan/Zoom -->
+        <Border Grid.Row="0" Background="#1a1a2e" ClipToBounds="True">
+            <Canvas x:Name="GraphCanvas" Background="Transparent">
+                <!-- Edges Canvas - rendered via code-behind -->
+                <Canvas x:Name="EdgesCanvas"/>
+                
+                <!-- Nodes Canvas - rendered via code-behind -->
+                <Canvas x:Name="NodesCanvas"/>
+
+                <!-- Drawing Line (for edge creation mode) -->
+                <Line x:Name="DrawingLine" 
+                      IsVisible="False"
+                      Stroke="White"
+                      StrokeThickness="2"
+                      StrokeDashArray="5,5"/>
+            </Canvas>
+        </Border>
+
+        <!-- Error Notification Toast -->
+        <Border x:Name="ErrorToast"
+                Grid.Row="0"
+                IsVisible="{Binding ShowError}"
+                Background="#E53935"
+                CornerRadius="5"
+                Padding="15,10"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,20,0,0">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="White"
+                       FontWeight="Bold"/>
+        </Border>
+
+        <!-- Toolbar Panel -->
+        <Border Grid.Row="1" 
+                Background="#16213e" 
+                Padding="15">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <!-- Speed Slider -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Animation Speed: " 
+                               Foreground="White" 
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                    <Slider x:Name="SpeedSlider"
+                            Width="200"
+                            Minimum="0"
+                            Maximum="3"
+                            Value="{Binding AnimationInterval}"
+                            TickFrequency="0.1"
+                            IsSnapToTickEnabled="True"
+                            VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding AnimationInterval, StringFormat={}{0:F1}s}"
+                               Foreground="White"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"
+                               Width="35"/>
+                </StackPanel>
+
+                <Panel Grid.Column="1"/>
+
+                <!-- Status Indicator -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                    <Ellipse Width="12" Height="12" 
+                             Fill="{Binding IsVisualizing, Converter={x:Static vm:BoolToColorConverter.Instance}}"
+                             Margin="0,0,8,0"/>
+                    <TextBlock Text="{Binding IsVisualizing, Converter={x:Static vm:BoolToStatusConverter.Instance}}"
+                               Foreground="White"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Start Button -->
+                <Button Grid.Column="3" 
+                        Content="? Start"
+                        Command="{Binding StartAlgorithmCommand}"
+                        Background="#4CAF50"
+                        Foreground="White"
+                        Padding="20,10"
+                        Margin="0,0,10,0"
+                        FontWeight="Bold"/>
+
+                <!-- Clear Button -->
+                <Button Grid.Column="4" 
+                        Content="?? Clear"
+                        Command="{Binding ClearGraphCommand}"
+                        Background="#E53935"
+                        Foreground="White"
+                        Padding="20,10"
+                        FontWeight="Bold"/>
+            </Grid>
+        </Border>
+    </Grid>
 </Window>

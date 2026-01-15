@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using Avalonia.Media;
 using DijkstraVisualization.Models;
 
 namespace DijkstraVisualization.ViewModels
@@ -9,6 +10,9 @@ namespace DijkstraVisualization.ViewModels
         private readonly EdgeModel _model;
         private readonly NodeViewModel _source;
         private readonly NodeViewModel _target;
+        private static readonly Color DefaultEdgeColor = Colors.White;
+        private Color _customColor = DefaultEdgeColor;
+        private bool _isOnShortestPath;
 
         public EdgeViewModel(EdgeModel model, NodeViewModel source, NodeViewModel target)
         {
@@ -28,6 +32,16 @@ namespace DijkstraVisualization.ViewModels
         public double StartY => _source.Y;
         public double EndX => _target.X;
         public double EndY => _target.Y;
+
+        /// <summary>
+        /// Gets the midpoint X for label placement.
+        /// </summary>
+        public double MidX => (StartX + EndX) / 2;
+
+        /// <summary>
+        /// Gets the midpoint Y for label placement.
+        /// </summary>
+        public double MidY => (StartY + EndY) / 2;
 
         public double Length
         {
@@ -75,6 +89,46 @@ namespace DijkstraVisualization.ViewModels
             }
         }
 
+        public Color CustomColor
+        {
+            get => _customColor;
+            set
+            {
+                if (_customColor != value)
+                {
+                    _customColor = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DisplayBrush));
+                }
+            }
+        }
+
+        public bool IsOnShortestPath
+        {
+            get => _isOnShortestPath;
+            set
+            {
+                if (_isOnShortestPath != value)
+                {
+                    _isOnShortestPath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DisplayBrush));
+                    OnPropertyChanged(nameof(StrokeThickness));
+                }
+            }
+        }
+
+        public IBrush DisplayBrush
+        {
+            get
+            {
+                if (IsOnShortestPath) return new SolidColorBrush(Colors.Gold);
+                return new SolidColorBrush(CustomColor);
+            }
+        }
+
+        public double StrokeThickness => IsOnShortestPath ? 4 : 2;
+
         public EdgeModel ToModel() => _model;
 
         public void Dispose()
@@ -97,6 +151,8 @@ namespace DijkstraVisualization.ViewModels
             OnPropertyChanged(nameof(StartY));
             OnPropertyChanged(nameof(EndX));
             OnPropertyChanged(nameof(EndY));
+            OnPropertyChanged(nameof(MidX));
+            OnPropertyChanged(nameof(MidY));
             OnPropertyChanged(nameof(Angle));
             OnPropertyChanged(nameof(Length));
         }
