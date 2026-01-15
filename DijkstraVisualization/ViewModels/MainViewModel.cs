@@ -41,7 +41,14 @@ namespace DijkstraVisualization.ViewModels
         public bool IsVisualizing
         {
             get => _isVisualizing;
-            private set => SetProperty(ref _isVisualizing, value);
+            private set
+            {
+                if (SetProperty(ref _isVisualizing, value))
+                {
+                    StartAlgorithmCommand.NotifyCanExecuteChanged();
+                    ClearGraphCommand.NotifyCanExecuteChanged();
+                }
+            }
         }
 
         public double AnimationInterval
@@ -87,6 +94,7 @@ namespace DijkstraVisualization.ViewModels
                 {
                     _startNode.IsStartNode = true;
                 }
+                StartAlgorithmCommand.NotifyCanExecuteChanged();
             }
         }
 
@@ -101,6 +109,7 @@ namespace DijkstraVisualization.ViewModels
                 {
                     _endNode.IsEndNode = true;
                 }
+                StartAlgorithmCommand.NotifyCanExecuteChanged();
             }
         }
 

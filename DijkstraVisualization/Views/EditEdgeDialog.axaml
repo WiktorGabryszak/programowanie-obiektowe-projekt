@@ -3,11 +3,11 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 x:Class="DijkstraVisualization.Views.EditEdgeDialog"
 Title="Edit Edge"
 Width="350"
-Height="340"
+Height="380"
 WindowStartupLocation="CenterOwner"
 CanResize="False"
 Background="#1a1a2e">
-    <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+    <Grid Margin="20" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
         <TextBlock Grid.Row="0" Text="Edit Edge" FontSize="20" FontWeight="Bold" Foreground="White" Margin="0,0,0,20"/>
         <StackPanel Grid.Row="1" Margin="0,0,0,15">
             <TextBlock Text="Name:" Foreground="White" Margin="0,0,0,5"/>
@@ -15,7 +15,8 @@ Background="#1a1a2e">
         </StackPanel>
         <StackPanel Grid.Row="2" Margin="0,0,0,15">
             <TextBlock Text="Weight:" Foreground="White" Margin="0,0,0,5"/>
-            <NumericUpDown x:Name="WeightNumeric" Background="#16213e" Foreground="White" Minimum="0" Maximum="10000" Increment="0.1"/>
+            <NumericUpDown x:Name="WeightNumeric" Background="#16213e" Foreground="White" Minimum="0" Maximum="10000" Increment="1"/>
+            <CheckBox x:Name="LockWeightCheckBox" Content="Lock weight" Foreground="White" Margin="0,8,0,0"/>
         </StackPanel>
         <StackPanel Grid.Row="3" Margin="0,0,0,15">
             <TextBlock Text="Color (RGB):" Foreground="White" Margin="0,0,0,5"/>
@@ -28,8 +29,8 @@ Background="#1a1a2e">
                 <NumericUpDown Grid.Row="1" Grid.Column="2" x:Name="ColorB" Minimum="0" Maximum="255" Increment="1" Background="#16213e" Foreground="White" Margin="5,0,0,0" ShowButtonSpinner="False"/>
             </Grid>
         </StackPanel>
-        <Panel Grid.Row="4"/>
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+        <Panel Grid.Row="5"/>
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="SaveButton" Content="Save" Background="#4CAF50" Foreground="White" Padding="20,10" Margin="0,0,10,0"/>
             <Button x:Name="CancelButton" Content="Cancel" Background="#E53935" Foreground="White" Padding="20,10"/>
         </StackPanel>

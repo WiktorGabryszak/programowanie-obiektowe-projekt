@@ -28,6 +28,8 @@ namespace DijkstraVisualization.Views
 
         private const double NodeRadius = 25;
         private const double NodeSize = 50;
+        private const double NodeContainerSize = 60; // NodeSize + 10 (padding)
+        private const double NodeCenterOffset = 30;  // Half of NodeContainerSize
 
         public MainWindow()
         {
@@ -254,11 +256,11 @@ namespace DijkstraVisualization.Views
         {
             if (_edgesCanvas == null) return;
 
-            // Calculate center points of nodes
-            var startX = edge.StartX + NodeRadius;
-            var startY = edge.StartY + NodeRadius;
-            var endX = edge.EndX + NodeRadius;
-            var endY = edge.EndY + NodeRadius;
+            // Calculate center points of nodes (using NodeCenterOffset for correct center position)
+            var startX = edge.StartX + NodeCenterOffset;
+            var startY = edge.StartY + NodeCenterOffset;
+            var endX = edge.EndX + NodeCenterOffset;
+            var endY = edge.EndY + NodeCenterOffset;
 
             // Calculate direction
             var dx = endX - startX;
@@ -270,7 +272,7 @@ namespace DijkstraVisualization.Views
             var nx = dx / length;
             var ny = dy / length;
 
-            // Shorten line to not overlap with node circles
+            // Shorten line to not overlap with node circles (using NodeRadius for the circle size)
             var shortenedStartX = startX + nx * NodeRadius;
             var shortenedStartY = startY + ny * NodeRadius;
             var shortenedEndX = endX - nx * NodeRadius;
@@ -287,29 +289,6 @@ namespace DijkstraVisualization.Views
             };
             _edgesCanvas.Children.Add(line);
 
-            // Draw arrowhead
-            const double arrowSize = 12;
-            var arrowX = shortenedEndX;
-            var arrowY = shortenedEndY;
-
-            var angle = Math.Atan2(dy, dx);
-            var arrow1X = arrowX - arrowSize * Math.Cos(angle - Math.PI / 6);
-            var arrow1Y = arrowY - arrowSize * Math.Sin(angle - Math.PI / 6);
-            var arrow2X = arrowX - arrowSize * Math.Cos(angle + Math.PI / 6);
-            var arrow2Y = arrowY - arrowSize * Math.Sin(angle + Math.PI / 6);
-
-            var arrowHead = new Polygon
-            {
-                Points = new Points
-                {
-                    new Point(arrowX, arrowY),
-                    new Point(arrow1X, arrow1Y),
-                    new Point(arrow2X, arrow2Y)
-                },
-                Fill = edge.DisplayBrush
-            };
-            _edgesCanvas.Children.Add(arrowHead);
-
             // Draw weight label at midpoint
             var midX = (shortenedStartX + shortenedEndX) / 2;
             var midY = (shortenedStartY + shortenedEndY) / 2;
@@ -321,7 +300,7 @@ namespace DijkstraVisualization.Views
                 Padding = new Thickness(4, 2),
                 Child = new TextBlock
                 {
-                    Text = edge.Weight.ToString("F1"),
+                    Text = edge.Weight.ToString("F0"),
                     Foreground = Brushes.White,
                     FontSize = 10
                 }
@@ -384,6 +363,7 @@ namespace DijkstraVisualization.Views
             }
         }
 
+
         private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
         {
             if (_graphCanvas == null) return;
@@ -393,8 +373,32 @@ namespace DijkstraVisualization.Views
 
             if (_isDrawingEdge && _drawingLine != null && _edgeSourceNode != null)
             {
-                _drawingLine.StartPoint = new Point(_edgeSourceNode.X + NodeRadius, _edgeSourceNode.Y + NodeRadius);
-                _drawingLine.EndPoint = new Point(canvasPoint.X + NodeRadius, canvasPoint.Y + NodeRadius);
+                // Calculate center of source node
+                var centerX = _edgeSourceNode.X + NodeCenterOffset;
+                var centerY = _edgeSourceNode.Y + NodeCenterOffset;
+                
+                // Calculate direction to cursor
+                var dx = canvasPoint.X - centerX;
+                var dy = canvasPoint.Y - centerY;
+                var length = Math.Sqrt(dx * dx + dy * dy);
+                
+                if (length > NodeRadius)
+                {
+                    // Normalize and offset start point to edge of node circle
+                    var nx = dx / length;
+                    var ny = dy / length;
+                    var startX = centerX + nx * NodeRadius;
+                    var startY = centerY + ny * NodeRadius;
+                    
+                    _drawingLine.StartPoint = new Point(startX, startY);
+                    _drawingLine.EndPoint = new Point(canvasPoint.X, canvasPoint.Y);
+                    _drawingLine.IsVisible = true;
+                }
+                else
+                {
+                    // Cursor is inside the node - hide the line
+                    _drawingLine.IsVisible = false;
+                }
             }
             else if (_isDraggingNode && _draggedNode != null)
             {
@@ -405,8 +409,31 @@ namespace DijkstraVisualization.Views
 
         private void OnCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
         {
+            if (_isDraggingNode && _draggedNode != null)
+            {
+                // Update weights of all edges connected to the dragged node
+                UpdateConnectedEdgeWeights(_draggedNode);
+            }
+
             _isDraggingNode = false;
             _draggedNode = null;
+        }
+
+        /// <summary>
+        /// Updates the weights of all edges connected to the specified node based on their current length.
+        /// Skips edges that have IsWeightLocked set to true.
+        /// </summary>
+        private void UpdateConnectedEdgeWeights(NodeViewModel node)
+        {
+            if (ViewModel == null) return;
+
+            foreach (var edge in ViewModel.Edges)
+            {
+                if (edge.Source == node || edge.Target == node)
+                {
+                    edge.UpdateWeightFromLength();
+                }
+            }
         }
 
         #endregion
@@ -425,8 +452,8 @@ namespace DijkstraVisualization.Views
 
             foreach (var node in ViewModel.Nodes.Reverse())
             {
-                var centerX = node.X + NodeRadius;
-                var centerY = node.Y + NodeRadius;
+                var centerX = node.X + NodeCenterOffset;
+                var centerY = node.Y + NodeCenterOffset;
                 var dx = canvasPoint.X - centerX;
                 var dy = canvasPoint.Y - centerY;
                 var distance = Math.Sqrt(dx * dx + dy * dy);
@@ -447,10 +474,10 @@ namespace DijkstraVisualization.Views
 
             foreach (var edge in ViewModel.Edges.Reverse())
             {
-                var startX = edge.StartX + NodeRadius;
-                var startY = edge.StartY + NodeRadius;
-                var endX = edge.EndX + NodeRadius;
-                var endY = edge.EndY + NodeRadius;
+                var startX = edge.StartX + NodeCenterOffset;
+                var startY = edge.StartY + NodeCenterOffset;
+                var endX = edge.EndX + NodeCenterOffset;
+                var endY = edge.EndY + NodeCenterOffset;
 
                 var distance = PointToLineDistance(
                     canvasPoint.X, canvasPoint.Y,
@@ -556,9 +583,9 @@ namespace DijkstraVisualization.Views
 
             if (_drawingLine != null)
             {
-                _drawingLine.StartPoint = new Point(sourceNode.X + NodeRadius, sourceNode.Y + NodeRadius);
-                _drawingLine.EndPoint = new Point(sourceNode.X + NodeRadius, sourceNode.Y + NodeRadius);
-                _drawingLine.IsVisible = true;
+                // Line will be positioned correctly in OnCanvasPointerMoved
+                // Initially hidden until cursor moves outside the source node
+                _drawingLine.IsVisible = false;
             }
         }
 
@@ -568,7 +595,7 @@ namespace DijkstraVisualization.Views
 
             var dx = targetNode.X - _edgeSourceNode.X;
             var dy = targetNode.Y - _edgeSourceNode.Y;
-            var weight = Math.Sqrt(dx * dx + dy * dy);
+            var weight = Math.Round(Math.Sqrt(dx * dx + dy * dy));
 
             ViewModel.AddEdgeCommand.Execute(new EdgeCreation(
                 _edgeSourceNode.Id,

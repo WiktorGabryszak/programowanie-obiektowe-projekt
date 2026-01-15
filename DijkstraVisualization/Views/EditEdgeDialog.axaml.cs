@@ -11,6 +11,7 @@ namespace DijkstraVisualization.Views
         private readonly EdgeViewModel _edge;
         private TextBox? _nameTextBox;
         private NumericUpDown? _weightNumeric;
+        private CheckBox? _lockWeightCheckBox;
         private NumericUpDown? _colorR;
         private NumericUpDown? _colorG;
         private NumericUpDown? _colorB;
@@ -35,6 +36,7 @@ namespace DijkstraVisualization.Views
         {
             _nameTextBox = this.FindControl<TextBox>("NameTextBox");
             _weightNumeric = this.FindControl<NumericUpDown>("WeightNumeric");
+            _lockWeightCheckBox = this.FindControl<CheckBox>("LockWeightCheckBox");
             _colorR = this.FindControl<NumericUpDown>("ColorR");
             _colorG = this.FindControl<NumericUpDown>("ColorG");
             _colorB = this.FindControl<NumericUpDown>("ColorB");
@@ -49,6 +51,11 @@ namespace DijkstraVisualization.Views
             if (_weightNumeric != null)
             {
                 _weightNumeric.Value = (decimal)_edge.Weight;
+            }
+
+            if (_lockWeightCheckBox != null)
+            {
+                _lockWeightCheckBox.IsChecked = _edge.IsWeightLocked;
             }
 
             if (_colorR != null && _colorG != null && _colorB != null)
@@ -79,6 +86,11 @@ namespace DijkstraVisualization.Views
             if (_weightNumeric != null)
             {
                 _edge.Weight = (double)(_weightNumeric.Value ?? 0);
+            }
+
+            if (_lockWeightCheckBox != null)
+            {
+                _edge.IsWeightLocked = _lockWeightCheckBox.IsChecked ?? false;
             }
             
             if (_colorR != null && _colorG != null && _colorB != null)

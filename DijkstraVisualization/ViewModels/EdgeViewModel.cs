@@ -13,6 +13,7 @@ namespace DijkstraVisualization.ViewModels
         private static readonly Color DefaultEdgeColor = Colors.White;
         private Color _customColor = DefaultEdgeColor;
         private bool _isOnShortestPath;
+        private bool _isWeightLocked;
 
         public EdgeViewModel(EdgeModel model, NodeViewModel source, NodeViewModel target)
         {
@@ -118,6 +119,22 @@ namespace DijkstraVisualization.ViewModels
             }
         }
 
+        /// <summary>
+        /// When true, the weight of this edge will not be automatically updated when nodes are moved.
+        /// </summary>
+        public bool IsWeightLocked
+        {
+            get => _isWeightLocked;
+            set
+            {
+                if (_isWeightLocked != value)
+                {
+                    _isWeightLocked = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public IBrush DisplayBrush
         {
             get
@@ -128,6 +145,18 @@ namespace DijkstraVisualization.ViewModels
         }
 
         public double StrokeThickness => IsOnShortestPath ? 4 : 2;
+
+        /// <summary>
+        /// Updates the weight to match the current Euclidean length of the edge (rounded to nearest integer).
+        /// Does nothing if IsWeightLocked is true.
+        /// </summary>
+        public void UpdateWeightFromLength()
+        {
+            if (!IsWeightLocked)
+            {
+                Weight = Math.Round(Length);
+            }
+        }
 
         public EdgeModel ToModel() => _model;
 
