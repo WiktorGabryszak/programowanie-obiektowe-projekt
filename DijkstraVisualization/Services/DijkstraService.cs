@@ -153,11 +153,7 @@ namespace DijkstraVisualization.Services
         private static Dictionary<Guid, double> InitializeDistances(GraphModel graph, Guid startId)
         {
             var distances = graph.Nodes.ToDictionary(node => node.Id, _ => double.PositiveInfinity);
-            if (distances.ContainsKey(startId))
-            {
-                distances[startId] = 0;
-            }
-
+            distances[startId] = 0;
             return distances;
         }
 
