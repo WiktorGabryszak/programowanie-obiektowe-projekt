@@ -146,7 +146,12 @@ namespace DijkstraVisualization.ViewModels
                 return;
             }
 
-            if (_graph.Edges.Any(e => e.SourceNodeId == creation.SourceNodeId && e.TargetNodeId == creation.TargetNodeId))
+            // Check if edge already exists in either direction (undirected graph)
+            var edgeExists = _graph.Edges.Any(e => 
+                (e.SourceNodeId == creation.SourceNodeId && e.TargetNodeId == creation.TargetNodeId) ||
+                (e.SourceNodeId == creation.TargetNodeId && e.TargetNodeId == creation.SourceNodeId));
+
+            if (edgeExists)
             {
                 ShowErrorMessage("Edge between these nodes already exists!");
                 return;
