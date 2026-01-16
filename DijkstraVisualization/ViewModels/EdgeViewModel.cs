@@ -206,7 +206,7 @@ namespace DijkstraVisualization.ViewModels
             get
             {
                 if (IsOnShortestPath) return new SolidColorBrush(Colors.Gold);
-                if (IsBeingRelaxed) return new SolidColorBrush(Colors.Cyan);
+                // Removed cyan color for IsBeingRelaxed - keep normal color during animation
                 return new SolidColorBrush(CustomColor);
             }
         }
@@ -216,7 +216,7 @@ namespace DijkstraVisualization.ViewModels
             get
             {
                 if (IsOnShortestPath) return 4;
-                if (IsBeingRelaxed) return 3;
+                // Removed thicker line for IsBeingRelaxed - keep normal thickness during animation
                 return 2;
             }
         }

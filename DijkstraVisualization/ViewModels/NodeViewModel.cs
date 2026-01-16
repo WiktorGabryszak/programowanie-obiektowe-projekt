@@ -89,19 +89,54 @@ namespace DijkstraVisualization.ViewModels
         private string displayedDistance = InfinitySymbol;
 
         /// <summary>
+        /// Whether the distance was just updated (triggers pulse animation).
+        /// </summary>
+        [ObservableProperty]
+        private bool isDistanceUpdated;
+
+        /// <summary>
+        /// Scale factor for the distance label (for pulse animation).
+        /// </summary>
+        [ObservableProperty]
+        private double distanceLabelScale = 1.0;
+
+        /// <summary>
         /// The actual numeric distance value (for internal use).
         /// </summary>
         private double _numericDistance = double.PositiveInfinity;
 
         /// <summary>
         /// Sets the distance value and updates the display string.
+        /// Returns true if the distance was actually improved (decreased).
         /// </summary>
-        public void SetDistance(double distance)
+        public bool SetDistance(double distance)
         {
+            var oldDistance = _numericDistance;
             _numericDistance = distance;
             DisplayedDistance = double.IsPositiveInfinity(distance) 
                 ? InfinitySymbol 
                 : distance.ToString("F0");
+            
+            // Return true if distance was improved (decreased from a finite value or from infinity)
+            var wasImproved = distance < oldDistance;
+            return wasImproved;
+        }
+
+        /// <summary>
+        /// Triggers the distance update animation.
+        /// </summary>
+        public void TriggerDistanceUpdateAnimation()
+        {
+            IsDistanceUpdated = true;
+        }
+
+        /// <summary>
+        /// Clears the distance update animation state.
+        /// </summary>
+        public void ClearDistanceUpdateAnimation()
+        {
+            IsDistanceUpdated = false;
+            DistanceLabelScale = 1.0;
         }
 
         /// <summary>
@@ -114,6 +149,8 @@ namespace DijkstraVisualization.ViewModels
             IsOnShortestPath = false;
             ShowDistanceLabel = false;
             DisplayedDistance = InfinitySymbol;
+            IsDistanceUpdated = false;
+            DistanceLabelScale = 1.0;
             _numericDistance = double.PositiveInfinity;
         }
 
@@ -170,6 +207,11 @@ namespace DijkstraVisualization.ViewModels
             }
         }
 
+        /// <summary>
+        /// Glow effect color when distance is updated.
+        /// </summary>
+        public IBrush DistanceUpdateGlowBrush => new SolidColorBrush(Colors.Yellow);
+
         partial void OnIsCurrentNodeChanged(bool value) => NotifyVisualChanges();
         partial void OnIsOnShortestPathChanged(bool value) => NotifyVisualChanges();
         partial void OnIsVisitedChanged(bool value) => NotifyVisualChanges();
@@ -178,6 +220,8 @@ namespace DijkstraVisualization.ViewModels
         partial void OnIsSelectedChanged(bool value) => NotifyVisualChanges();
         partial void OnCustomColorChanged(Color value) => NotifyVisualChanges();
         partial void OnShowDistanceLabelChanged(bool value) => NotifyVisualChanges();
+        partial void OnIsDistanceUpdatedChanged(bool value) => NotifyVisualChanges();
+        partial void OnDistanceLabelScaleChanged(double value) => NotifyVisualChanges();
         partial void OnDisplayedDistanceChanged(string value) 
         {
             OnPropertyChanged(nameof(DisplayedDistance));

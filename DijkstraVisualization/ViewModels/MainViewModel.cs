@@ -28,8 +28,13 @@ namespace DijkstraVisualization.ViewModels
         private string? _errorMessage;
         private bool _showError;
 
-        private const int WaveAnimationSteps = 10;
-        private const int WaveStepDelayMs = 30;
+        private const int WaveAnimationSteps = 50;
+        private const int WaveStepDelayMs = 10;
+
+        // Pulse animation constants
+        private const int PulseAnimationSteps = 20;
+        private const int PulseStepDelayMs = 15;
+        private const double PulseMaxScale = 1.4;
 
         public MainViewModel(IDijkstraService dijkstraService)
         {
@@ -422,7 +427,7 @@ namespace DijkstraVisualization.ViewModels
             var edgesToAnimate = new List<EdgeViewModel>();
 
             // Mark ALL edges being checked as relaxing (for wave animation)
-            foreach (var (edgeId, (_, _, isDirectionReversed)) in step.RelaxedEdges)
+            foreach (var (edgeId, (neighborId, _, isDirectionReversed)) in step.RelaxedEdges)
             {
                 if (_edgeLookup.TryGetValue(edgeId, out var edge))
                 {
@@ -447,16 +452,80 @@ namespace DijkstraVisualization.ViewModels
                 await Task.Delay(WaveStepDelayMs, token).ConfigureAwait(true);
             }
 
-            // Update distances on target nodes after wave completes
-            // (only those that actually improved will have new values in CurrentDistances)
-            UpdateNodeDistances(step.CurrentDistances);
-
             // Clear relaxation state
             foreach (var edge in edgesToAnimate)
             {
                 edge.IsBeingRelaxed = false;
                 edge.RelaxationProgress = 0;
                 edge.RelaxationDirectionReversed = false;
+            }
+
+            // Update distances on target nodes after wave completes
+            // Track which nodes got updated for pulse animation
+            var updatedNodes = new List<NodeViewModel>();
+            
+            // Only update the neighbor nodes that were actually checked in this step
+            foreach (var (edgeId, (neighborId, newDistance, _)) in step.RelaxedEdges)
+            {
+                if (_nodeLookup.TryGetValue(neighborId, out var node))
+                {
+                    var wasUpdated = node.SetDistance(newDistance);
+                    if (wasUpdated)
+                    {
+                        node.TriggerDistanceUpdateAnimation();
+                        updatedNodes.Add(node);
+                    }
+                }
+            }
+
+            // Animate pulse effect on updated nodes
+            if (updatedNodes.Count > 0)
+            {
+                await AnimatePulseAsync(updatedNodes, token);
+            }
+        }
+
+        /// <summary>
+        /// Animates a pulse effect on the distance labels of updated nodes.
+        /// </summary>
+        private async Task AnimatePulseAsync(List<NodeViewModel> nodes, CancellationToken token)
+        {
+            // Expand phase
+            for (int i = 1; i <= PulseAnimationSteps / 2; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                
+                var progress = (double)i / (PulseAnimationSteps / 2);
+                var scale = 1.0 + (PulseMaxScale - 1.0) * progress;
+                
+                foreach (var node in nodes)
+                {
+                    node.DistanceLabelScale = scale;
+                }
+                
+                await Task.Delay(PulseStepDelayMs, token).ConfigureAwait(true);
+            }
+
+            // Contract phase
+            for (int i = 1; i <= PulseAnimationSteps / 2; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                
+                var progress = (double)i / (PulseAnimationSteps / 2);
+                var scale = PulseMaxScale - (PulseMaxScale - 1.0) * progress;
+                
+                foreach (var node in nodes)
+                {
+                    node.DistanceLabelScale = scale;
+                }
+                
+                await Task.Delay(PulseStepDelayMs, token).ConfigureAwait(true);
+            }
+
+            // Clear animation state
+            foreach (var node in nodes)
+            {
+                node.ClearDistanceUpdateAnimation();
             }
         }
 

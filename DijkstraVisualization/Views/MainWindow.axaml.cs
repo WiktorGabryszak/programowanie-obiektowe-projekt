@@ -133,7 +133,8 @@ namespace DijkstraVisualization.Views
                 nameof(NodeViewModel.IsVisited) or nameof(NodeViewModel.IsCurrentNode) or
                 nameof(NodeViewModel.IsOnShortestPath) or nameof(NodeViewModel.IsStartNode) or
                 nameof(NodeViewModel.IsEndNode) or nameof(NodeViewModel.ShowDistanceLabel) or
-                nameof(NodeViewModel.DisplayedDistance) or nameof(NodeViewModel.DistanceLabelBrush))
+                nameof(NodeViewModel.DisplayedDistance) or nameof(NodeViewModel.DistanceLabelBrush) or
+                nameof(NodeViewModel.IsDistanceUpdated) or nameof(NodeViewModel.DistanceLabelScale))
             {
                 RedrawAll();
             }
@@ -207,23 +208,46 @@ namespace DijkstraVisualization.Views
         {
             if (_nodesCanvas == null) return;
 
+            var scale = node.DistanceLabelScale;
+            var scaledSize = DistanceLabelSize * scale;
+
+            // Determine border color and thickness based on state
+            IBrush borderBrush;
+            double borderThickness;
+            
+            if (node.IsDistanceUpdated)
+            {
+                // Pulsing yellow border when just updated
+                borderBrush = new SolidColorBrush(Colors.Yellow);
+                borderThickness = 3;
+            }
+            else if (node.IsVisited)
+            {
+                // Green border when visited/finalized
+                borderBrush = new SolidColorBrush(Colors.LimeGreen);
+                borderThickness = 2;
+            }
+            else
+            {
+                // Dark red border otherwise
+                borderBrush = new SolidColorBrush(Colors.DarkRed);
+                borderThickness = 2;
+            }
+
             // Create distance label container
-            // Border color based on visited state (green when visited/finalized)
             var labelBorder = new Border
             {
-                Width = DistanceLabelSize,
-                Height = DistanceLabelSize,
+                Width = scaledSize,
+                Height = scaledSize,
                 Background = node.DistanceLabelBrush,
-                BorderBrush = node.IsVisited 
-                    ? new SolidColorBrush(Colors.LimeGreen) 
-                    : new SolidColorBrush(Colors.DarkRed),
-                BorderThickness = new Thickness(2),
-                CornerRadius = new CornerRadius(3),
+                BorderBrush = borderBrush,
+                BorderThickness = new Thickness(borderThickness),
+                CornerRadius = new CornerRadius(3 * scale),
                 Child = new TextBlock
                 {
                     Text = node.DisplayedDistance,
                     Foreground = Brushes.White,
-                    FontSize = 11,
+                    FontSize = 11 * scale,
                     FontWeight = FontWeight.Bold,
                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
                     VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
@@ -231,9 +255,29 @@ namespace DijkstraVisualization.Views
                 }
             };
 
-            // Position above the node (centered)
-            var labelX = node.X + (NodeContainerSize - DistanceLabelSize) / 2;
-            var labelY = node.Y + DistanceLabelOffset;
+            // Add glow effect when updating (draw larger shadow behind)
+            if (node.IsDistanceUpdated && scale > 1.1)
+            {
+                var glowSize = scaledSize + 8;
+                var glowBorder = new Border
+                {
+                    Width = glowSize,
+                    Height = glowSize,
+                    Background = new SolidColorBrush(Color.FromArgb(128, 255, 255, 0)), // Semi-transparent yellow
+                    CornerRadius = new CornerRadius(5 * scale)
+                };
+
+                var glowX = node.X + (NodeContainerSize - glowSize) / 2;
+                var glowY = node.Y + DistanceLabelOffset - (glowSize - scaledSize) / 2;
+
+                Canvas.SetLeft(glowBorder, glowX);
+                Canvas.SetTop(glowBorder, glowY);
+                _nodesCanvas.Children.Add(glowBorder);
+            }
+
+            // Position above the node (centered, accounting for scale)
+            var labelX = node.X + (NodeContainerSize - scaledSize) / 2;
+            var labelY = node.Y + DistanceLabelOffset - (scaledSize - DistanceLabelSize) / 2;
 
             Canvas.SetLeft(labelBorder, labelX);
             Canvas.SetTop(labelBorder, labelY);
