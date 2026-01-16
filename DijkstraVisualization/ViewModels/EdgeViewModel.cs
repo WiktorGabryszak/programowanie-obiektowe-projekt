@@ -14,6 +14,9 @@ namespace DijkstraVisualization.ViewModels
         private Color _customColor = DefaultEdgeColor;
         private bool _isOnShortestPath;
         private bool _isWeightLocked;
+        private bool _isBeingRelaxed;
+        private double _relaxationProgress;
+        private bool _relaxationDirectionReversed;
 
         public EdgeViewModel(EdgeModel model, NodeViewModel source, NodeViewModel target)
         {
@@ -135,16 +138,88 @@ namespace DijkstraVisualization.ViewModels
             }
         }
 
+        /// <summary>
+        /// Whether this edge is currently being relaxed (wave animation).
+        /// </summary>
+        public bool IsBeingRelaxed
+        {
+            get => _isBeingRelaxed;
+            set
+            {
+                if (_isBeingRelaxed != value)
+                {
+                    _isBeingRelaxed = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DisplayBrush));
+                    OnPropertyChanged(nameof(StrokeThickness));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Progress of relaxation animation (0.0 to 1.0).
+        /// Used to animate the "wave" effect along the edge.
+        /// </summary>
+        public double RelaxationProgress
+        {
+            get => _relaxationProgress;
+            set
+            {
+                if (Math.Abs(_relaxationProgress - value) > 0.001)
+                {
+                    _relaxationProgress = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// When true, the wave animation goes from Target to Source instead of Source to Target.
+        /// This is needed when Dijkstra is at the Target node and checking the Source neighbor.
+        /// </summary>
+        public bool RelaxationDirectionReversed
+        {
+            get => _relaxationDirectionReversed;
+            set
+            {
+                if (_relaxationDirectionReversed != value)
+                {
+                    _relaxationDirectionReversed = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resets all visualization-related properties.
+        /// </summary>
+        public void ResetVisualizationState()
+        {
+            IsOnShortestPath = false;
+            IsBeingRelaxed = false;
+            RelaxationProgress = 0;
+            RelaxationDirectionReversed = false;
+        }
+
         public IBrush DisplayBrush
         {
             get
             {
                 if (IsOnShortestPath) return new SolidColorBrush(Colors.Gold);
+                if (IsBeingRelaxed) return new SolidColorBrush(Colors.Cyan);
                 return new SolidColorBrush(CustomColor);
             }
         }
 
-        public double StrokeThickness => IsOnShortestPath ? 4 : 2;
+        public double StrokeThickness
+        {
+            get
+            {
+                if (IsOnShortestPath) return 4;
+                if (IsBeingRelaxed) return 3;
+                return 2;
+            }
+        }
 
         /// <summary>
         /// Updates the weight to match the current Euclidean length of the edge (rounded to nearest integer).

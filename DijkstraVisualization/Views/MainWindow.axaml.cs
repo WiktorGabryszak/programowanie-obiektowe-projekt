@@ -30,6 +30,8 @@ namespace DijkstraVisualization.Views
         private const double NodeSize = 50;
         private const double NodeContainerSize = 60; // NodeSize + 10 (padding)
         private const double NodeCenterOffset = 30;  // Half of NodeContainerSize
+        private const double DistanceLabelSize = 30;
+        private const double DistanceLabelOffset = -35; // Above the node
 
         public MainWindow()
         {
@@ -124,7 +126,8 @@ namespace DijkstraVisualization.Views
                 nameof(NodeViewModel.BorderBrush) or nameof(NodeViewModel.BorderThickness) or
                 nameof(NodeViewModel.IsVisited) or nameof(NodeViewModel.IsCurrentNode) or
                 nameof(NodeViewModel.IsOnShortestPath) or nameof(NodeViewModel.IsStartNode) or
-                nameof(NodeViewModel.IsEndNode))
+                nameof(NodeViewModel.IsEndNode) or nameof(NodeViewModel.ShowDistanceLabel) or
+                nameof(NodeViewModel.DisplayedDistance) or nameof(NodeViewModel.DistanceLabelBrush))
             {
                 RedrawAll();
             }
@@ -186,6 +189,50 @@ namespace DijkstraVisualization.Views
             Canvas.SetTop(container, node.Y);
             
             _nodesCanvas.Children.Add(container);
+
+            // Draw distance label if visualization is active
+            if (node.ShowDistanceLabel)
+            {
+                DrawDistanceLabel(node);
+            }
+        }
+
+        private void DrawDistanceLabel(NodeViewModel node)
+        {
+            if (_nodesCanvas == null) return;
+
+            // Create distance label container
+            // Border color based on visited state (green when visited/finalized)
+            var labelBorder = new Border
+            {
+                Width = DistanceLabelSize,
+                Height = DistanceLabelSize,
+                Background = node.DistanceLabelBrush,
+                BorderBrush = node.IsVisited 
+                    ? new SolidColorBrush(Colors.LimeGreen) 
+                    : new SolidColorBrush(Colors.DarkRed),
+                BorderThickness = new Thickness(2),
+                CornerRadius = new CornerRadius(3),
+                Child = new TextBlock
+                {
+                    Text = node.DisplayedDistance,
+                    Foreground = Brushes.White,
+                    FontSize = 11,
+                    FontWeight = FontWeight.Bold,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    TextAlignment = TextAlignment.Center
+                }
+            };
+
+            // Position above the node (centered)
+            var labelX = node.X + (NodeContainerSize - DistanceLabelSize) / 2;
+            var labelY = node.Y + DistanceLabelOffset;
+
+            Canvas.SetLeft(labelBorder, labelX);
+            Canvas.SetTop(labelBorder, labelY);
+            
+            _nodesCanvas.Children.Add(labelBorder);
         }
 
         #endregion
@@ -228,7 +275,8 @@ namespace DijkstraVisualization.Views
             if (e.PropertyName is nameof(EdgeViewModel.StartX) or nameof(EdgeViewModel.StartY) or 
                 nameof(EdgeViewModel.EndX) or nameof(EdgeViewModel.EndY) or
                 nameof(EdgeViewModel.DisplayBrush) or nameof(EdgeViewModel.StrokeThickness) or
-                nameof(EdgeViewModel.IsOnShortestPath) or nameof(EdgeViewModel.Weight))
+                nameof(EdgeViewModel.IsOnShortestPath) or nameof(EdgeViewModel.Weight) or
+                nameof(EdgeViewModel.IsBeingRelaxed) or nameof(EdgeViewModel.RelaxationProgress))
             {
                 RedrawAllEdges();
             }
@@ -289,6 +337,12 @@ namespace DijkstraVisualization.Views
             };
             _edgesCanvas.Children.Add(line);
 
+            // Draw wave animation overlay if being relaxed
+            if (edge.IsBeingRelaxed && edge.RelaxationProgress > 0)
+            {
+                DrawRelaxationWave(edge, shortenedStartX, shortenedStartY, shortenedEndX, shortenedEndY);
+            }
+
             // Draw weight label at midpoint
             var midX = (shortenedStartX + shortenedEndX) / 2;
             var midY = (shortenedStartY + shortenedEndY) / 2;
@@ -309,6 +363,54 @@ namespace DijkstraVisualization.Views
             Canvas.SetLeft(labelBorder, midX - 15);
             Canvas.SetTop(labelBorder, midY - 10);
             _edgesCanvas.Children.Add(labelBorder);
+        }
+
+        private void DrawRelaxationWave(EdgeViewModel edge, double startX, double startY, double endX, double endY)
+        {
+            if (_edgesCanvas == null) return;
+
+            var progress = edge.RelaxationProgress;
+
+            // If direction is reversed, swap start and end points
+            double waveStartX, waveStartY, waveEndX, waveEndY;
+            if (edge.RelaxationDirectionReversed)
+            {
+                // Wave goes from Target (end) to Source (start)
+                waveStartX = endX;
+                waveStartY = endY;
+                waveEndX = endX + (startX - endX) * progress;
+                waveEndY = endY + (startY - endY) * progress;
+            }
+            else
+            {
+                // Wave goes from Source (start) to Target (end)
+                waveStartX = startX;
+                waveStartY = startY;
+                waveEndX = startX + (endX - startX) * progress;
+                waveEndY = startY + (endY - startY) * progress;
+            }
+
+            // Draw the animated wave line
+            var waveLine = new Line
+            {
+                StartPoint = new Point(waveStartX, waveStartY),
+                EndPoint = new Point(waveEndX, waveEndY),
+                Stroke = new SolidColorBrush(Colors.Yellow),
+                StrokeThickness = edge.StrokeThickness + 2,
+                StrokeLineCap = PenLineCap.Round
+            };
+            _edgesCanvas.Children.Add(waveLine);
+
+            // Draw a glowing dot at the wave front
+            var glowEllipse = new Ellipse
+            {
+                Width = 10,
+                Height = 10,
+                Fill = new SolidColorBrush(Colors.Yellow)
+            };
+            Canvas.SetLeft(glowEllipse, waveEndX - 5);
+            Canvas.SetTop(glowEllipse, waveEndY - 5);
+            _edgesCanvas.Children.Add(glowEllipse);
         }
 
         #endregion

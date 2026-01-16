@@ -9,6 +9,7 @@ namespace DijkstraVisualization.ViewModels
     {
         private readonly NodeModel _model;
         private static readonly Color DefaultNodeColor = Color.FromRgb(128, 128, 128);
+        private const string InfinitySymbol = "?";
 
         public NodeViewModel(NodeModel model)
         {
@@ -17,6 +18,7 @@ namespace DijkstraVisualization.ViewModels
             x = model.X;
             y = model.Y;
             customColor = DefaultNodeColor;
+            displayedDistance = InfinitySymbol;
         }
 
         public Guid Id => _model.Id;
@@ -54,47 +56,119 @@ namespace DijkstraVisualization.ViewModels
         [ObservableProperty]
         private bool isEndNode;
 
+        /// <summary>
+        /// Node has been fully processed (visited) - shown with green fill.
+        /// </summary>
         [ObservableProperty]
         private bool isVisited;
 
         [ObservableProperty]
         private bool isOnShortestPath;
 
+        /// <summary>
+        /// Dijkstra is currently at this node (processing it) - shown with green border.
+        /// </summary>
         [ObservableProperty]
         private bool isCurrentNode;
 
         [ObservableProperty]
         private Color customColor;
 
+        // === Properties for visualization ===
+
+        /// <summary>
+        /// Whether to show the distance label above the node.
+        /// </summary>
+        [ObservableProperty]
+        private bool showDistanceLabel;
+
+        /// <summary>
+        /// The displayed distance value (? or actual number).
+        /// </summary>
+        [ObservableProperty]
+        private string displayedDistance = InfinitySymbol;
+
+        /// <summary>
+        /// The actual numeric distance value (for internal use).
+        /// </summary>
+        private double _numericDistance = double.PositiveInfinity;
+
+        /// <summary>
+        /// Sets the distance value and updates the display string.
+        /// </summary>
+        public void SetDistance(double distance)
+        {
+            _numericDistance = distance;
+            DisplayedDistance = double.IsPositiveInfinity(distance) 
+                ? InfinitySymbol 
+                : distance.ToString("F0");
+        }
+
+        /// <summary>
+        /// Resets all visualization-related properties.
+        /// </summary>
+        public void ResetVisualizationState()
+        {
+            IsVisited = false;
+            IsCurrentNode = false;
+            IsOnShortestPath = false;
+            ShowDistanceLabel = false;
+            DisplayedDistance = InfinitySymbol;
+            _numericDistance = double.PositiveInfinity;
+        }
+
         /// <summary>
         /// Gets the display color based on the node's current state.
-        /// Priority: Current (Green) > OnShortestPath (Gold) > Visited (Red) > Start (LimeGreen) > End (OrangeRed) > Custom
+        /// Priority: OnShortestPath (Gold) > Visited (Green) > Start > End > Custom
         /// </summary>
         public IBrush DisplayBrush
         {
             get
             {
-                if (IsCurrentNode) return new SolidColorBrush(Colors.LimeGreen);
                 if (IsOnShortestPath) return new SolidColorBrush(Colors.Gold);
-                if (IsVisited) return new SolidColorBrush(Colors.Crimson);
-                if (IsStartNode) return new SolidColorBrush(Colors.ForestGreen);
+                if (IsVisited) return new SolidColorBrush(Colors.ForestGreen);
+                if (IsStartNode) return new SolidColorBrush(Colors.DodgerBlue);
                 if (IsEndNode) return new SolidColorBrush(Colors.OrangeRed);
                 return new SolidColorBrush(CustomColor);
             }
         }
 
+        /// <summary>
+        /// Border brush - green when current (being processed), otherwise based on selection state.
+        /// </summary>
         public IBrush BorderBrush
         {
             get
             {
-                if (IsStartNode) return new SolidColorBrush(Colors.LimeGreen);
-                if (IsEndNode) return new SolidColorBrush(Colors.Red);
+                if (IsCurrentNode) return new SolidColorBrush(Colors.LimeGreen);
+                if (IsStartNode && !IsVisited) return new SolidColorBrush(Colors.DodgerBlue);
+                if (IsEndNode && !IsVisited) return new SolidColorBrush(Colors.OrangeRed);
                 if (IsSelected) return new SolidColorBrush(Colors.White);
                 return new SolidColorBrush(Colors.Transparent);
             }
         }
 
-        public double BorderThickness => (IsStartNode || IsEndNode || IsSelected) ? 3 : 0;
+        /// <summary>
+        /// Border thickness for the node circle.
+        /// </summary>
+        public double BorderThickness => (IsCurrentNode || IsStartNode || IsEndNode || IsSelected) ? 3 : 0;
+
+        /// <summary>
+        /// Background brush for the distance label.
+        /// Shows the current known distance color.
+        /// </summary>
+        public IBrush DistanceLabelBrush
+        {
+            get
+            {
+                // If visited (finalized), show green
+                if (IsVisited) return new SolidColorBrush(Colors.ForestGreen);
+                // If has a known distance (not infinity), show orange
+                if (!double.IsPositiveInfinity(_numericDistance)) return new SolidColorBrush(Colors.DarkOrange);
+                // Unknown distance - red
+                return new SolidColorBrush(Colors.Crimson);
+            }
+        }
 
         partial void OnIsCurrentNodeChanged(bool value) => NotifyVisualChanges();
         partial void OnIsOnShortestPathChanged(bool value) => NotifyVisualChanges();
@@ -103,12 +177,19 @@ namespace DijkstraVisualization.ViewModels
         partial void OnIsEndNodeChanged(bool value) => NotifyVisualChanges();
         partial void OnIsSelectedChanged(bool value) => NotifyVisualChanges();
         partial void OnCustomColorChanged(Color value) => NotifyVisualChanges();
+        partial void OnShowDistanceLabelChanged(bool value) => NotifyVisualChanges();
+        partial void OnDisplayedDistanceChanged(string value) 
+        {
+            OnPropertyChanged(nameof(DisplayedDistance));
+            OnPropertyChanged(nameof(DistanceLabelBrush));
+        }
 
         private void NotifyVisualChanges()
         {
             OnPropertyChanged(nameof(DisplayBrush));
             OnPropertyChanged(nameof(BorderBrush));
             OnPropertyChanged(nameof(BorderThickness));
+            OnPropertyChanged(nameof(DistanceLabelBrush));
         }
 
         public NodeModel ToModel() => _model;
