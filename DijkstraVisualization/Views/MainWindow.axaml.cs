@@ -461,6 +461,23 @@ namespace DijkstraVisualization.Views
                     return;
                 }
 
+                // Ctrl + LPM: Add node on empty space, or remove node if clicked on a node
+                if (keyModifiers.HasFlag(KeyModifiers.Control))
+                {
+                    if (clickedNode != null)
+                    {
+                        // Ctrl + LPM on node = remove node
+                        ViewModel.RemoveNodeCommand.Execute(clickedNode.Id);
+                    }
+                    else
+                    {
+                        // Ctrl + LPM on empty space = add node
+                        ViewModel.AddNodeCommand.Execute(new NodePlacement(canvasPoint.X - NodeCenterOffset, canvasPoint.Y - NodeCenterOffset));
+                    }
+                    e.Handled = true;
+                    return;
+                }
+
                 // Shift + LPM on a node starts edge drawing via drag
                 if (keyModifiers.HasFlag(KeyModifiers.Shift) && clickedNode != null)
                 {
@@ -476,7 +493,7 @@ namespace DijkstraVisualization.Views
                     return;
                 }
 
-                // Normal node dragging (without Shift)
+                // Normal node dragging (without Shift or Ctrl)
                 if (clickedNode != null)
                 {
                     _isDraggingNode = true;
