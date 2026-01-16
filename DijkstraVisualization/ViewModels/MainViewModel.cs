@@ -345,7 +345,7 @@ namespace DijkstraVisualization.ViewModels
                     break;
 
                 case AlgorithmStepType.VisitNode:
-                    ApplyVisitNodeStep(step);
+                    ApplyVisitNodeStep(step, token);
                     break;
 
                 case AlgorithmStepType.FinalizeNode:
@@ -376,19 +376,33 @@ namespace DijkstraVisualization.ViewModels
             }
         }
 
-        private void ApplyVisitNodeStep(AlgorithmStep step)
+        private async Task ApplyVisitNodeStep(AlgorithmStep step, CancellationToken token)
         {
-            // Clear previous current node highlight
-            foreach (var node in Nodes)
+            // Find the new current node
+            if (!_nodeLookup.TryGetValue(step.CurrentNodeId, out var newCurrentNode))
             {
-                node.IsCurrentNode = false;
+                return;
             }
 
-            // Set new current node (green border - being processed)
-            if (_nodeLookup.TryGetValue(step.CurrentNodeId, out var currentNode))
+            // Find the previous current node (if any)
+            var previousCurrentNode = Nodes.FirstOrDefault(n => n.IsCurrentNode);
+
+            // If there's a previous node, animate the transition
+            if (previousCurrentNode != null && previousCurrentNode != newCurrentNode)
             {
-                currentNode.IsCurrentNode = true;
+                // First, mark the previous node as visited (this will show green border when yellow moves away)
+                // But don't clear IsCurrentNode yet - yellow border stays on old node during this
+                previousCurrentNode.IsVisited = true;
+                
+                // Animate the transition (yellow border stays on old node during this)
+                await AnimateBorderTransitionAsync(previousCurrentNode, newCurrentNode, token);
+                
+                // Now remove yellow border from previous node (revealing green border underneath)
+                previousCurrentNode.IsCurrentNode = false;
             }
+
+            // Set new current node (yellow border)
+            newCurrentNode.IsCurrentNode = true;
 
             // Update distances
             UpdateNodeDistances(step.CurrentDistances);
@@ -403,13 +417,31 @@ namespace DijkstraVisualization.ViewModels
             }
         }
 
+        /// <summary>
+        /// Animates a smooth transition of the yellow border from one node to another.
+        /// During this animation, the old node keeps its yellow border, then reveals green underneath.
+        /// </summary>
+        private async Task AnimateBorderTransitionAsync(NodeViewModel fromNode, NodeViewModel toNode, CancellationToken token)
+        {
+            const int transitionSteps = 15;
+            const int transitionDelayMs = 20;
+
+            // Smooth transition delay - yellow border stays on old node, then jumps to new node
+            for (int i = 0; i < transitionSteps; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                await Task.Delay(transitionDelayMs, token).ConfigureAwait(true);
+            }
+        }
+
         private void ApplyFinalizeNodeStep(AlgorithmStep step)
         {
-            // Clear current node highlight (no longer being processed)
+            // Mark node as finalized/visited (green border)
             if (_nodeLookup.TryGetValue(step.CurrentNodeId, out var node))
             {
-                node.IsCurrentNode = false;
-                node.IsVisited = true; // Now fully visited - green color
+                // Don't clear IsCurrentNode here - it's handled in ApplyVisitNodeStep
+                // Just ensure it's marked as visited
+                node.IsVisited = true;
             }
 
             // Update all visited nodes
@@ -531,7 +563,7 @@ namespace DijkstraVisualization.ViewModels
 
         private void ApplyCompleteStep(AlgorithmStep step)
         {
-            // Clear current node highlight
+            // Clear yellow border from all nodes at the end
             foreach (var node in Nodes)
             {
                 node.IsCurrentNode = false;

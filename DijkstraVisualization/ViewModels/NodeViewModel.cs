@@ -156,14 +156,15 @@ namespace DijkstraVisualization.ViewModels
 
         /// <summary>
         /// Gets the display color based on the node's current state.
-        /// Priority: OnShortestPath (Gold) > Visited (Green) > Start > End > Custom
+        /// Priority: OnShortestPath (Gold) > Start > End > Custom
+        /// Visited nodes keep their original color, only border changes
         /// </summary>
         public IBrush DisplayBrush
         {
             get
             {
                 if (IsOnShortestPath) return new SolidColorBrush(Colors.Gold);
-                if (IsVisited) return new SolidColorBrush(Colors.ForestGreen);
+                // Removed: if (IsVisited) return new SolidColorBrush(Colors.ForestGreen);
                 if (IsStartNode) return new SolidColorBrush(Colors.DodgerBlue);
                 if (IsEndNode) return new SolidColorBrush(Colors.OrangeRed);
                 return new SolidColorBrush(CustomColor);
@@ -171,24 +172,38 @@ namespace DijkstraVisualization.ViewModels
         }
 
         /// <summary>
-        /// Border brush - green when current (being processed), otherwise based on selection state.
+        /// Border brush priority: 
+        /// - Yellow when current (being processed) - thickest, always visible
+        /// - Green when visited/finalized - visible after yellow moves away
+        /// - Blue/Red for start/end nodes
+        /// - White when selected
         /// </summary>
         public IBrush BorderBrush
         {
             get
             {
-                if (IsCurrentNode) return new SolidColorBrush(Colors.LimeGreen);
-                if (IsStartNode && !IsVisited) return new SolidColorBrush(Colors.DodgerBlue);
-                if (IsEndNode && !IsVisited) return new SolidColorBrush(Colors.OrangeRed);
+                if (IsCurrentNode) return new SolidColorBrush(Colors.Yellow);
+                if (IsVisited) return new SolidColorBrush(Colors.LimeGreen);
+                if (IsStartNode) return new SolidColorBrush(Colors.DodgerBlue);
+                if (IsEndNode) return new SolidColorBrush(Colors.OrangeRed);
                 if (IsSelected) return new SolidColorBrush(Colors.White);
                 return new SolidColorBrush(Colors.Transparent);
             }
         }
 
         /// <summary>
-        /// Border thickness for the node circle.
+        /// Border thickness - yellow current border is thickest to always be visible.
         /// </summary>
-        public double BorderThickness => (IsCurrentNode || IsStartNode || IsEndNode || IsSelected) ? 3 : 0;
+        public double BorderThickness
+        {
+            get
+            {
+                if (IsCurrentNode) return 5; // Thickest - always visible
+                if (IsVisited) return 3; // Green border for visited nodes
+                if (IsStartNode || IsEndNode || IsSelected) return 3;
+                return 0;
+            }
+        }
 
         /// <summary>
         /// Background brush for the distance label.
@@ -198,7 +213,7 @@ namespace DijkstraVisualization.ViewModels
         {
             get
             {
-                // If visited (finalized), show green
+                // If visited (finalized), show green background
                 if (IsVisited) return new SolidColorBrush(Colors.ForestGreen);
                 // If has a known distance (not infinity), show orange
                 if (!double.IsPositiveInfinity(_numericDistance)) return new SolidColorBrush(Colors.DarkOrange);
