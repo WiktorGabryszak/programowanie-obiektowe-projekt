@@ -22,6 +22,9 @@ namespace DijkstraVisualization.Views
         private bool _isDrawingEdge;
         private NodeViewModel? _edgeSourceNode;
 
+        // New: Shift+drag edge creation
+        private bool _isShiftDraggingEdge;
+
         private bool _isDraggingNode;
         private NodeViewModel? _draggedNode;
         private Point _dragOffset;
@@ -425,13 +428,14 @@ namespace DijkstraVisualization.Views
             var point = e.GetPosition(_graphCanvas);
             var canvasPoint = TransformToCanvas(point);
             var properties = e.GetCurrentPoint(_graphCanvas).Properties;
+            var keyModifiers = e.KeyModifiers;
 
             var clickedNode = FindNodeAt(canvasPoint);
             var clickedEdge = clickedNode == null ? FindEdgeAt(canvasPoint) : null;
 
             if (properties.IsRightButtonPressed)
             {
-                if (_isDrawingEdge)
+                if (_isDrawingEdge || _isShiftDraggingEdge)
                 {
                     CancelEdgeDrawing();
                     return;
@@ -442,6 +446,7 @@ namespace DijkstraVisualization.Views
             }
             else if (properties.IsLeftButtonPressed)
             {
+                // Check if we're completing an edge drawing (from context menu mode)
                 if (_isDrawingEdge)
                 {
                     if (clickedNode != null && clickedNode != _edgeSourceNode)
@@ -453,8 +458,26 @@ namespace DijkstraVisualization.Views
                         CancelEdgeDrawing();
                     }
                     e.Handled = true;
+                    return;
                 }
-                else if (clickedNode != null)
+
+                // Shift + LPM on a node starts edge drawing via drag
+                if (keyModifiers.HasFlag(KeyModifiers.Shift) && clickedNode != null)
+                {
+                    _isShiftDraggingEdge = true;
+                    _edgeSourceNode = clickedNode;
+                    
+                    if (_drawingLine != null)
+                    {
+                        _drawingLine.IsVisible = false;
+                    }
+                    
+                    e.Handled = true;
+                    return;
+                }
+
+                // Normal node dragging (without Shift)
+                if (clickedNode != null)
                 {
                     _isDraggingNode = true;
                     _draggedNode = clickedNode;
@@ -473,7 +496,8 @@ namespace DijkstraVisualization.Views
             var point = e.GetPosition(_graphCanvas);
             var canvasPoint = TransformToCanvas(point);
 
-            if (_isDrawingEdge && _drawingLine != null && _edgeSourceNode != null)
+            // Handle both context menu edge drawing and shift+drag edge drawing
+            if ((_isDrawingEdge || _isShiftDraggingEdge) && _drawingLine != null && _edgeSourceNode != null)
             {
                 // Calculate center of source node
                 var centerX = _edgeSourceNode.X + NodeCenterOffset;
@@ -511,6 +535,30 @@ namespace DijkstraVisualization.Views
 
         private void OnCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
         {
+            if (_graphCanvas == null) return;
+
+            var point = e.GetPosition(_graphCanvas);
+            var canvasPoint = TransformToCanvas(point);
+
+            // Complete shift+drag edge creation
+            if (_isShiftDraggingEdge && _edgeSourceNode != null)
+            {
+                var targetNode = FindNodeAt(canvasPoint);
+                
+                if (targetNode != null && targetNode != _edgeSourceNode)
+                {
+                    CompleteEdgeDrawing(targetNode);
+                }
+                else
+                {
+                    CancelEdgeDrawing();
+                }
+                
+                e.Handled = true;
+                return;
+            }
+
+            // Normal node drag completion
             if (_isDraggingNode && _draggedNode != null)
             {
                 // Update weights of all edges connected to the dragged node
@@ -710,6 +758,7 @@ namespace DijkstraVisualization.Views
         private void CancelEdgeDrawing()
         {
             _isDrawingEdge = false;
+            _isShiftDraggingEdge = false;
             _edgeSourceNode = null;
 
             if (_drawingLine != null)
