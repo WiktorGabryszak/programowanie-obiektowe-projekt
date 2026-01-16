@@ -29,6 +29,9 @@ namespace DijkstraVisualization.Views
         private NodeViewModel? _draggedNode;
         private Point _dragOffset;
 
+        // Track active context menu to close it before opening a new one
+        private ContextMenu? _activeContextMenu;
+
         private const double NodeRadius = 25;
         private const double NodeSize = 50;
         private const double NodeContainerSize = 60; // NodeSize + 10 (padding)
@@ -681,6 +684,13 @@ namespace DijkstraVisualization.Views
 
         private void ShowContextMenu(Point canvasPoint, NodeViewModel? node, EdgeViewModel? edge)
         {
+            // Close any existing context menu before opening a new one
+            if (_activeContextMenu != null)
+            {
+                _activeContextMenu.Close();
+                _activeContextMenu = null;
+            }
+
             var menu = new ContextMenu();
 
             if (node != null)
@@ -735,6 +745,16 @@ namespace DijkstraVisualization.Views
                 addNodeItem.Click += (s, e) => ViewModel?.AddNodeCommand.Execute(new NodePlacement(canvasPoint.X, canvasPoint.Y));
                 menu.Items.Add(addNodeItem);
             }
+
+            // Track this menu and clear reference when it closes
+            _activeContextMenu = menu;
+            menu.Closed += (s, e) =>
+            {
+                if (_activeContextMenu == menu)
+                {
+                    _activeContextMenu = null;
+                }
+            };
 
             menu.Open(this);
         }
