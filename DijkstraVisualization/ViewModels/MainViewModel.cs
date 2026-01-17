@@ -304,7 +304,6 @@ namespace DijkstraVisualization.ViewModels
             }
             catch (OperationCanceledException)
             {
-                // User cancelled - ignore
             }
             finally
             {
@@ -349,7 +348,6 @@ namespace DijkstraVisualization.ViewModels
                 node.IsOnShortestPath = result.PathFound && pathNodes.Contains(node.Id);
             }
 
-            // Highlight edges on the shortest path
             if (result.PathFound && result.NodePath.Count > 1)
             {
                 for (int i = 0; i < result.NodePath.Count - 1; i++)

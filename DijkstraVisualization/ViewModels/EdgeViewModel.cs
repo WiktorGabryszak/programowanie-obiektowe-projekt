@@ -34,14 +34,8 @@ namespace DijkstraVisualization.ViewModels
         public double EndX => _target.X;
         public double EndY => _target.Y;
 
-        /// <summary>
-        /// Gets the midpoint X for label placement.
-        /// </summary>
         public double MidX => (StartX + EndX) / 2;
 
-        /// <summary>
-        /// Gets the midpoint Y for label placement.
-        /// </summary>
         public double MidY => (StartY + EndY) / 2;
 
         public double Length
@@ -119,9 +113,6 @@ namespace DijkstraVisualization.ViewModels
             }
         }
 
-        /// <summary>
-        /// When true, the weight of this edge will not be automatically updated when nodes are moved.
-        /// </summary>
         public bool IsWeightLocked
         {
             get => _isWeightLocked;
@@ -146,10 +137,6 @@ namespace DijkstraVisualization.ViewModels
 
         public double StrokeThickness => IsOnShortestPath ? 4 : 2;
 
-        /// <summary>
-        /// Updates the weight to match the current Euclidean length of the edge (rounded to nearest integer).
-        /// Does nothing if IsWeightLocked is true.
-        /// </summary>
         public void UpdateWeightFromLength()
         {
             if (!IsWeightLocked)

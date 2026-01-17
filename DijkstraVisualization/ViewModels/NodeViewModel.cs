@@ -66,10 +66,6 @@ namespace DijkstraVisualization.ViewModels
         [ObservableProperty]
         private Color customColor;
 
-        /// <summary>
-        /// Gets the display color based on the node's current state.
-        /// Priority: Current (Green) > OnShortestPath (Gold) > Visited (Red) > Start (LimeGreen) > End (OrangeRed) > Custom
-        /// </summary>
         public IBrush DisplayBrush
         {
             get
