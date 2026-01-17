@@ -44,8 +44,10 @@ namespace DijkstraVisualization.Services
 
                 foreach (var edge in edges)
                 {
-                    var neighbor = edge.TargetNodeId;
-                    if (!distances.ContainsKey(neighbor))
+                    // Determine neighbor - the other end of the edge
+                    var neighbor = GetNeighbor(edge, current);
+                    
+                    if (!distances.ContainsKey(neighbor) || visited.Contains(neighbor))
                     {
                         continue;
                     }
@@ -92,48 +94,230 @@ namespace DijkstraVisualization.Services
             var previous = new Dictionary<Guid, Guid>();
             var queue = CreateQueue(startId);
 
+            // Step: Initialize - show all distances (? except start = 0)
+            yield return CreateInitializeStep(distances);
+
             while (queue.Count > 0)
             {
                 var current = queue.Dequeue();
-                if (!visited.Add(current))
+                
+                // Skip if already visited
+                if (visited.Contains(current))
                 {
                     continue;
                 }
 
-                yield return CreateStep(current, visited, distances);
+                // KROK 1: Visit node - Dijkstra enters this node (green border)
+                yield return CreateVisitNodeStep(current, distances, visited);
 
+                // KROK 2: Check if we reached the destination - STOP condition
                 if (current == endId)
                 {
+                    // Mark as visited before completing
+                    visited.Add(current);
+                    yield return CreateFinalizeNodeStep(current, distances, visited);
                     break;
                 }
 
-                if (!adjacency.TryGetValue(current, out var edges))
+                // Get edges from current node for relaxation
+                var edgesToCheck = new List<(Guid EdgeId, Guid NeighborId, bool IsDirectionReversed)>();
+                var edgesToRelax = new Dictionary<Guid, (Guid NeighborId, double NewDistance, bool IsDirectionReversed)>();
+
+                if (adjacency.TryGetValue(current, out var edges))
                 {
-                    continue;
+                    // KROK 3: Relaxation - check ALL unvisited neighbors
+                    foreach (var edge in edges)
+                    {
+                        // Determine neighbor - the other end of the edge
+                        var neighbor = GetNeighbor(edge, current);
+                        
+                        // Determine if wave direction is reversed (current is at Target, going to Source)
+                        var isDirectionReversed = edge.TargetNodeId == current;
+                        
+                        // Skip if neighbor doesn't exist or is already visited
+                        if (!distances.ContainsKey(neighbor) || visited.Contains(neighbor))
+                        {
+                            continue;
+                        }
+
+                        // Add to edges to check (for wave animation to ALL unvisited neighbors)
+                        edgesToCheck.Add((edge.Id, neighbor, isDirectionReversed));
+
+                        ValidateWeight(edge.Weight);
+                        var tentativeDistance = distances[current] + edge.Weight;
+                        
+                        // Only update if new distance is better
+                        if (tentativeDistance < distances[neighbor])
+                        {
+                            edgesToRelax[edge.Id] = (neighbor, tentativeDistance, isDirectionReversed);
+                            
+                            // Update state
+                            distances[neighbor] = tentativeDistance;
+                            previous[neighbor] = current;
+                            queue.Enqueue(neighbor, tentativeDistance);
+                        }
+                    }
                 }
 
-                foreach (var edge in edges)
+                // Show relaxation step - wave to ALL unvisited neighbors
+                if (edgesToCheck.Count > 0)
                 {
-                    var neighbor = edge.TargetNodeId;
-                    if (!distances.ContainsKey(neighbor))
-                    {
-                        continue;
-                    }
+                    yield return CreateRelaxEdgesStep(current, edgesToCheck, edgesToRelax, distances, visited);
+                }
 
-                    ValidateWeight(edge.Weight);
-                    var tentativeDistance = distances[current] + edge.Weight;
-                    if (tentativeDistance >= distances[neighbor])
-                    {
-                        continue;
-                    }
+                // KROK 4: Mark as visited (finalize) - change to green color
+                visited.Add(current);
+                yield return CreateFinalizeNodeStep(current, distances, visited);
+            }
 
-                    distances[neighbor] = tentativeDistance;
-                    previous[neighbor] = current;
-                    queue.Enqueue(neighbor, tentativeDistance);
-                    yield return CreateStep(current, visited, distances);
+            // Step: Complete - show final path
+            var pathFound = visited.Contains(endId) && !double.IsInfinity(distances[endId]);
+            var path = new List<Guid>();
+            
+            if (pathFound)
+            {
+                BuildPath(endId, startId, previous, path);
+            }
+
+            yield return CreateCompleteStep(distances, visited, path, pathFound, 
+                pathFound ? distances[endId] : double.PositiveInfinity);
+        }
+
+        #region Step Creators
+
+        private static AlgorithmStep CreateInitializeStep(Dictionary<Guid, double> distances)
+        {
+            var step = new AlgorithmStep
+            {
+                StepType = AlgorithmStepType.Initialize
+            };
+
+            foreach (var pair in distances)
+            {
+                step.CurrentDistances[pair.Key] = pair.Value;
+            }
+
+            return step;
+        }
+
+        private static AlgorithmStep CreateVisitNodeStep(Guid nodeId, Dictionary<Guid, double> distances, HashSet<Guid> visited)
+        {
+            var step = new AlgorithmStep
+            {
+                StepType = AlgorithmStepType.VisitNode,
+                CurrentNodeId = nodeId
+            };
+
+            foreach (var pair in distances)
+            {
+                step.CurrentDistances[pair.Key] = pair.Value;
+            }
+
+            foreach (var id in visited)
+            {
+                step.FinalizedNodes.Add(id);
+            }
+
+            return step;
+        }
+
+        private static AlgorithmStep CreateFinalizeNodeStep(Guid nodeId, Dictionary<Guid, double> distances, HashSet<Guid> visited)
+        {
+            var step = new AlgorithmStep
+            {
+                StepType = AlgorithmStepType.FinalizeNode,
+                CurrentNodeId = nodeId
+            };
+
+            foreach (var pair in distances)
+            {
+                step.CurrentDistances[pair.Key] = pair.Value;
+            }
+
+            foreach (var id in visited)
+            {
+                step.FinalizedNodes.Add(id);
+            }
+
+            return step;
+        }
+
+        private static AlgorithmStep CreateRelaxEdgesStep(
+            Guid currentNodeId,
+            List<(Guid EdgeId, Guid NeighborId, bool IsDirectionReversed)> allEdgesToCheck,
+            Dictionary<Guid, (Guid NeighborId, double NewDistance, bool IsDirectionReversed)> edgesWithUpdates,
+            Dictionary<Guid, double> distances,
+            HashSet<Guid> visited)
+        {
+            var step = new AlgorithmStep
+            {
+                StepType = AlgorithmStepType.RelaxEdges,
+                CurrentNodeId = currentNodeId
+            };
+
+            // Add ALL edges being checked (for wave animation)
+            foreach (var (edgeId, neighborId, isDirectionReversed) in allEdgesToCheck)
+            {
+                // If this edge has an update, include the new distance
+                // Otherwise, include current distance (no change)
+                if (edgesWithUpdates.TryGetValue(edgeId, out var update))
+                {
+                    step.RelaxedEdges[edgeId] = update;
+                }
+                else
+                {
+                    step.RelaxedEdges[edgeId] = (neighborId, distances[neighborId], isDirectionReversed);
                 }
             }
+
+            foreach (var pair in distances)
+            {
+                step.CurrentDistances[pair.Key] = pair.Value;
+            }
+
+            foreach (var id in visited)
+            {
+                step.FinalizedNodes.Add(id);
+            }
+
+            return step;
         }
+
+        private static AlgorithmStep CreateCompleteStep(
+            Dictionary<Guid, double> distances,
+            HashSet<Guid> visited,
+            List<Guid> path,
+            bool pathFound,
+            double totalCost)
+        {
+            var step = new AlgorithmStep
+            {
+                StepType = AlgorithmStepType.Complete,
+                PathFound = pathFound,
+                TotalCost = totalCost
+            };
+
+            foreach (var pair in distances)
+            {
+                step.CurrentDistances[pair.Key] = pair.Value;
+            }
+
+            foreach (var id in visited)
+            {
+                step.FinalizedNodes.Add(id);
+            }
+
+            foreach (var nodeId in path)
+            {
+                step.FinalPath.Add(nodeId);
+            }
+
+            return step;
+        }
+
+        #endregion
+
+        #region Helper Methods
 
         private static void ValidateWeight(double weight)
         {
@@ -153,11 +337,7 @@ namespace DijkstraVisualization.Services
         private static Dictionary<Guid, double> InitializeDistances(GraphModel graph, Guid startId)
         {
             var distances = graph.Nodes.ToDictionary(node => node.Id, _ => double.PositiveInfinity);
-            if (distances.ContainsKey(startId))
-            {
-                distances[startId] = 0;
-            }
-
+            distances[startId] = 0;
             return distances;
         }
 
@@ -166,13 +346,21 @@ namespace DijkstraVisualization.Services
             var adjacency = new Dictionary<Guid, List<EdgeModel>>();
             foreach (var edge in graph.Edges)
             {
-                if (!adjacency.TryGetValue(edge.SourceNodeId, out var list))
+                // Add edge for Source -> Target direction
+                if (!adjacency.TryGetValue(edge.SourceNodeId, out var sourceList))
                 {
-                    list = new List<EdgeModel>();
-                    adjacency[edge.SourceNodeId] = list;
+                    sourceList = new List<EdgeModel>();
+                    adjacency[edge.SourceNodeId] = sourceList;
                 }
+                sourceList.Add(edge);
 
-                list.Add(edge);
+                // Add edge for Target -> Source direction (undirected graph)
+                if (!adjacency.TryGetValue(edge.TargetNodeId, out var targetList))
+                {
+                    targetList = new List<EdgeModel>();
+                    adjacency[edge.TargetNodeId] = targetList;
+                }
+                targetList.Add(edge);
             }
 
             return adjacency;
@@ -216,24 +404,12 @@ namespace DijkstraVisualization.Services
             }
         }
 
-        private static AlgorithmStep CreateStep(Guid currentNodeId, HashSet<Guid> visited, Dictionary<Guid, double> distances)
+        // Determine neighbor - the other end of the edge
+        private static Guid GetNeighbor(EdgeModel edge, Guid current)
         {
-            var step = new AlgorithmStep
-            {
-                CurrentNodeId = currentNodeId
-            };
-
-            foreach (var nodeId in visited)
-            {
-                step.VisitedNodes.Add(nodeId);
-            }
-
-            foreach (var pair in distances)
-            {
-                step.CurrentDistances[pair.Key] = pair.Value;
-            }
-
-            return step;
+            return edge.SourceNodeId == current ? edge.TargetNodeId : edge.SourceNodeId;
         }
+
+        #endregion
     }
 }

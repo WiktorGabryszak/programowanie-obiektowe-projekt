@@ -22,14 +22,22 @@ namespace DijkstraVisualization.Views
         private bool _isDrawingEdge;
         private NodeViewModel? _edgeSourceNode;
 
+        // New: Shift+drag edge creation
+        private bool _isShiftDraggingEdge;
+
         private bool _isDraggingNode;
         private NodeViewModel? _draggedNode;
         private Point _dragOffset;
 
+        // Track active context menu to close it before opening a new one
+        private ContextMenu? _activeContextMenu;
+
         private const double NodeRadius = 25;
         private const double NodeSize = 50;
-        private const double NodeContainerSize = 60;
-        private const double NodeCenterOffset = 30;
+        private const double NodeContainerSize = 60; // NodeSize + 10 (padding)
+        private const double NodeCenterOffset = 30;  // Half of NodeContainerSize
+        private const double DistanceLabelSize = 30;
+        private const double DistanceLabelOffset = -35; // Above the node
 
         public MainWindow()
         {
@@ -83,6 +91,8 @@ namespace DijkstraVisualization.Views
             }
         }
 
+        #region Nodes Rendering
+
         private void OnNodesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (e.OldItems != null)
@@ -116,12 +126,15 @@ namespace DijkstraVisualization.Views
 
         private void OnNodePropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            // Redraw when node visual properties change
             if (e.PropertyName is nameof(NodeViewModel.X) or nameof(NodeViewModel.Y) or
                 nameof(NodeViewModel.Name) or nameof(NodeViewModel.DisplayBrush) or
                 nameof(NodeViewModel.BorderBrush) or nameof(NodeViewModel.BorderThickness) or
                 nameof(NodeViewModel.IsVisited) or nameof(NodeViewModel.IsCurrentNode) or
                 nameof(NodeViewModel.IsOnShortestPath) or nameof(NodeViewModel.IsStartNode) or
-                nameof(NodeViewModel.IsEndNode))
+                nameof(NodeViewModel.IsEndNode) or nameof(NodeViewModel.ShowDistanceLabel) or
+                nameof(NodeViewModel.DisplayedDistance) or nameof(NodeViewModel.DistanceLabelBrush) or
+                nameof(NodeViewModel.IsDistanceUpdated) or nameof(NodeViewModel.DistanceLabelScale))
             {
                 RedrawAll();
             }
@@ -143,12 +156,14 @@ namespace DijkstraVisualization.Views
         {
             if (_nodesCanvas == null) return;
 
+            // Create a container grid for the node
             var container = new Grid
             {
                 Width = NodeSize + 10,
                 Height = NodeSize + 10
             };
 
+            // Node circle
             var ellipse = new Ellipse
             {
                 Width = NodeSize,
@@ -161,6 +176,7 @@ namespace DijkstraVisualization.Views
             };
             container.Children.Add(ellipse);
 
+            // Node name label
             var label = new TextBlock
             {
                 Text = node.Name,
@@ -175,11 +191,103 @@ namespace DijkstraVisualization.Views
             };
             container.Children.Add(label);
 
+            // Position the container
             Canvas.SetLeft(container, node.X);
             Canvas.SetTop(container, node.Y);
             
             _nodesCanvas.Children.Add(container);
+
+            // Draw distance label if visualization is active
+            if (node.ShowDistanceLabel)
+            {
+                DrawDistanceLabel(node);
+            }
         }
+
+        private void DrawDistanceLabel(NodeViewModel node)
+        {
+            if (_nodesCanvas == null) return;
+
+            var scale = node.DistanceLabelScale;
+            var scaledSize = DistanceLabelSize * scale;
+
+            // Determine border color and thickness based on state
+            IBrush borderBrush;
+            double borderThickness;
+            
+            if (node.IsDistanceUpdated)
+            {
+                // Pulsing yellow border when just updated
+                borderBrush = new SolidColorBrush(Colors.Yellow);
+                borderThickness = 3;
+            }
+            else if (node.IsVisited)
+            {
+                // Green border when visited/finalized
+                borderBrush = new SolidColorBrush(Colors.LimeGreen);
+                borderThickness = 2;
+            }
+            else
+            {
+                // Dark red border otherwise
+                borderBrush = new SolidColorBrush(Colors.DarkRed);
+                borderThickness = 2;
+            }
+
+            // Create distance label container
+            var labelBorder = new Border
+            {
+                Width = scaledSize,
+                Height = scaledSize,
+                Background = node.DistanceLabelBrush,
+                BorderBrush = borderBrush,
+                BorderThickness = new Thickness(borderThickness),
+                CornerRadius = new CornerRadius(3 * scale),
+                Child = new TextBlock
+                {
+                    Text = node.DisplayedDistance,
+                    Foreground = Brushes.White,
+                    FontSize = 11 * scale,
+                    FontWeight = FontWeight.Bold,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    TextAlignment = TextAlignment.Center
+                }
+            };
+
+            // Add glow effect when updating (draw larger shadow behind)
+            if (node.IsDistanceUpdated && scale > 1.1)
+            {
+                var glowSize = scaledSize + 8;
+                var glowBorder = new Border
+                {
+                    Width = glowSize,
+                    Height = glowSize,
+                    Background = new SolidColorBrush(Color.FromArgb(128, 255, 255, 0)), // Semi-transparent yellow
+                    CornerRadius = new CornerRadius(5 * scale)
+                };
+
+                var glowX = node.X + (NodeContainerSize - glowSize) / 2;
+                var glowY = node.Y + DistanceLabelOffset - (glowSize - scaledSize) / 2;
+
+                Canvas.SetLeft(glowBorder, glowX);
+                Canvas.SetTop(glowBorder, glowY);
+                _nodesCanvas.Children.Add(glowBorder);
+            }
+
+            // Position above the node (centered, accounting for scale)
+            var labelX = node.X + (NodeContainerSize - scaledSize) / 2;
+            var labelY = node.Y + DistanceLabelOffset - (scaledSize - DistanceLabelSize) / 2;
+
+            Canvas.SetLeft(labelBorder, labelX);
+            Canvas.SetTop(labelBorder, labelY);
+            
+            _nodesCanvas.Children.Add(labelBorder);
+        }
+
+        #endregion
+
+        #region Edges Rendering
 
         private void OnEdgesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
@@ -217,7 +325,8 @@ namespace DijkstraVisualization.Views
             if (e.PropertyName is nameof(EdgeViewModel.StartX) or nameof(EdgeViewModel.StartY) or 
                 nameof(EdgeViewModel.EndX) or nameof(EdgeViewModel.EndY) or
                 nameof(EdgeViewModel.DisplayBrush) or nameof(EdgeViewModel.StrokeThickness) or
-                nameof(EdgeViewModel.IsOnShortestPath) or nameof(EdgeViewModel.Weight))
+                nameof(EdgeViewModel.IsOnShortestPath) or nameof(EdgeViewModel.Weight) or
+                nameof(EdgeViewModel.IsBeingRelaxed) or nameof(EdgeViewModel.RelaxationProgress))
             {
                 RedrawAllEdges();
             }
@@ -245,24 +354,29 @@ namespace DijkstraVisualization.Views
         {
             if (_edgesCanvas == null) return;
 
+            // Calculate center points of nodes (using NodeCenterOffset for correct center position)
             var startX = edge.StartX + NodeCenterOffset;
             var startY = edge.StartY + NodeCenterOffset;
             var endX = edge.EndX + NodeCenterOffset;
             var endY = edge.EndY + NodeCenterOffset;
 
+            // Calculate direction
             var dx = endX - startX;
             var dy = endY - startY;
             var length = Math.Sqrt(dx * dx + dy * dy);
             if (length < 1) return;
 
+            // Normalize
             var nx = dx / length;
             var ny = dy / length;
 
+            // Shorten line to not overlap with node circles (using NodeRadius for the circle size)
             var shortenedStartX = startX + nx * NodeRadius;
             var shortenedStartY = startY + ny * NodeRadius;
             var shortenedEndX = endX - nx * NodeRadius;
             var shortenedEndY = endY - ny * NodeRadius;
 
+            // Draw the main line
             var line = new Line
             {
                 StartPoint = new Point(shortenedStartX, shortenedStartY),
@@ -273,6 +387,13 @@ namespace DijkstraVisualization.Views
             };
             _edgesCanvas.Children.Add(line);
 
+            // Draw wave animation overlay if being relaxed
+            if (edge.IsBeingRelaxed && edge.RelaxationProgress > 0)
+            {
+                DrawRelaxationWave(edge, shortenedStartX, shortenedStartY, shortenedEndX, shortenedEndY);
+            }
+
+            // Draw weight label at midpoint
             var midX = (shortenedStartX + shortenedEndX) / 2;
             var midY = (shortenedStartY + shortenedEndY) / 2;
 
@@ -294,6 +415,58 @@ namespace DijkstraVisualization.Views
             _edgesCanvas.Children.Add(labelBorder);
         }
 
+        private void DrawRelaxationWave(EdgeViewModel edge, double startX, double startY, double endX, double endY)
+        {
+            if (_edgesCanvas == null) return;
+
+            var progress = edge.RelaxationProgress;
+
+            // If direction is reversed, swap start and end points
+            double waveStartX, waveStartY, waveEndX, waveEndY;
+            if (edge.RelaxationDirectionReversed)
+            {
+                // Wave goes from Target (end) to Source (start)
+                waveStartX = endX;
+                waveStartY = endY;
+                waveEndX = endX + (startX - endX) * progress;
+                waveEndY = endY + (startY - endY) * progress;
+            }
+            else
+            {
+                // Wave goes from Source (start) to Target (end)
+                waveStartX = startX;
+                waveStartY = startY;
+                waveEndX = startX + (endX - startX) * progress;
+                waveEndY = startY + (endY - startY) * progress;
+            }
+
+            // Draw the animated wave line
+            var waveLine = new Line
+            {
+                StartPoint = new Point(waveStartX, waveStartY),
+                EndPoint = new Point(waveEndX, waveEndY),
+                Stroke = new SolidColorBrush(Colors.Yellow),
+                StrokeThickness = edge.StrokeThickness + 2,
+                StrokeLineCap = PenLineCap.Round
+            };
+            _edgesCanvas.Children.Add(waveLine);
+
+            // Draw a glowing dot at the wave front
+            var glowEllipse = new Ellipse
+            {
+                Width = 10,
+                Height = 10,
+                Fill = new SolidColorBrush(Colors.Yellow)
+            };
+            Canvas.SetLeft(glowEllipse, waveEndX - 5);
+            Canvas.SetTop(glowEllipse, waveEndY - 5);
+            _edgesCanvas.Children.Add(glowEllipse);
+        }
+
+        #endregion
+
+        #region Input Handling
+
         private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
         {
             if (ViewModel == null || _graphCanvas == null) return;
@@ -302,13 +475,14 @@ namespace DijkstraVisualization.Views
             var point = e.GetPosition(_graphCanvas);
             var canvasPoint = TransformToCanvas(point);
             var properties = e.GetCurrentPoint(_graphCanvas).Properties;
+            var keyModifiers = e.KeyModifiers;
 
             var clickedNode = FindNodeAt(canvasPoint);
             var clickedEdge = clickedNode == null ? FindEdgeAt(canvasPoint) : null;
 
             if (properties.IsRightButtonPressed)
             {
-                if (_isDrawingEdge)
+                if (_isDrawingEdge || _isShiftDraggingEdge)
                 {
                     CancelEdgeDrawing();
                     return;
@@ -319,6 +493,7 @@ namespace DijkstraVisualization.Views
             }
             else if (properties.IsLeftButtonPressed)
             {
+                // Check if we're completing an edge drawing (from context menu mode)
                 if (_isDrawingEdge)
                 {
                     if (clickedNode != null && clickedNode != _edgeSourceNode)
@@ -330,16 +505,53 @@ namespace DijkstraVisualization.Views
                         CancelEdgeDrawing();
                     }
                     e.Handled = true;
+                    return;
                 }
-                else if (clickedNode != null)
+
+                // Ctrl + LPM: Add node on empty space, or remove node if clicked on a node
+                if (keyModifiers.HasFlag(KeyModifiers.Control))
+                {
+                    if (clickedNode != null)
+                    {
+                        // Ctrl + LPM on node = remove node
+                        ViewModel.RemoveNodeCommand.Execute(clickedNode.Id);
+                    }
+                    else
+                    {
+                        // Ctrl + LPM on empty space = add node
+                        ViewModel.AddNodeCommand.Execute(new NodePlacement(canvasPoint.X - NodeCenterOffset, canvasPoint.Y - NodeCenterOffset));
+                    }
+                    e.Handled = true;
+                    return;
+                }
+
+                // Shift + LPM on a node starts edge drawing via drag
+                if (keyModifiers.HasFlag(KeyModifiers.Shift) && clickedNode != null)
+                {
+                    _isShiftDraggingEdge = true;
+                    _edgeSourceNode = clickedNode;
+                    
+                    if (_drawingLine != null)
+                    {
+                        _drawingLine.IsVisible = false;
+                    }
+                    
+                    e.Handled = true;
+                    return;
+                }
+
+                // Normal node dragging (without Shift or Ctrl)
+                if (clickedNode != null)
                 {
                     _isDraggingNode = true;
                     _draggedNode = clickedNode;
                     _dragOffset = new Point(canvasPoint.X - clickedNode.X, canvasPoint.Y - clickedNode.Y);
                     e.Handled = true;
                 }
+                // Clicking on empty canvas does nothing special
             }
         }
+
 
         private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
         {
@@ -348,17 +560,21 @@ namespace DijkstraVisualization.Views
             var point = e.GetPosition(_graphCanvas);
             var canvasPoint = TransformToCanvas(point);
 
-            if (_isDrawingEdge && _drawingLine != null && _edgeSourceNode != null)
+            // Handle both context menu edge drawing and shift+drag edge drawing
+            if ((_isDrawingEdge || _isShiftDraggingEdge) && _drawingLine != null && _edgeSourceNode != null)
             {
+                // Calculate center of source node
                 var centerX = _edgeSourceNode.X + NodeCenterOffset;
                 var centerY = _edgeSourceNode.Y + NodeCenterOffset;
                 
+                // Calculate direction to cursor
                 var dx = canvasPoint.X - centerX;
                 var dy = canvasPoint.Y - centerY;
                 var length = Math.Sqrt(dx * dx + dy * dy);
                 
                 if (length > NodeRadius)
                 {
+                    // Normalize and offset start point to edge of node circle
                     var nx = dx / length;
                     var ny = dy / length;
                     var startX = centerX + nx * NodeRadius;
@@ -370,6 +586,7 @@ namespace DijkstraVisualization.Views
                 }
                 else
                 {
+                    // Cursor is inside the node - hide the line
                     _drawingLine.IsVisible = false;
                 }
             }
@@ -382,8 +599,33 @@ namespace DijkstraVisualization.Views
 
         private void OnCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
         {
+            if (_graphCanvas == null) return;
+
+            var point = e.GetPosition(_graphCanvas);
+            var canvasPoint = TransformToCanvas(point);
+
+            // Complete shift+drag edge creation
+            if (_isShiftDraggingEdge && _edgeSourceNode != null)
+            {
+                var targetNode = FindNodeAt(canvasPoint);
+                
+                if (targetNode != null && targetNode != _edgeSourceNode)
+                {
+                    CompleteEdgeDrawing(targetNode);
+                }
+                else
+                {
+                    CancelEdgeDrawing();
+                }
+                
+                e.Handled = true;
+                return;
+            }
+
+            // Normal node drag completion
             if (_isDraggingNode && _draggedNode != null)
             {
+                // Update weights of all edges connected to the dragged node
                 UpdateConnectedEdgeWeights(_draggedNode);
             }
 
@@ -391,6 +633,10 @@ namespace DijkstraVisualization.Views
             _draggedNode = null;
         }
 
+        /// <summary>
+        /// Updates the weights of all edges connected to the specified node based on their current length.
+        /// Skips edges that have IsWeightLocked set to true.
+        /// </summary>
         private void UpdateConnectedEdgeWeights(NodeViewModel node)
         {
             if (ViewModel == null) return;
@@ -404,8 +650,13 @@ namespace DijkstraVisualization.Views
             }
         }
 
+        #endregion
+
+        #region Hit Testing
+
         private Point TransformToCanvas(Point screenPoint)
         {
+            // No transformation needed - direct canvas coordinates
             return screenPoint;
         }
 
@@ -471,8 +722,19 @@ namespace DijkstraVisualization.Views
             return Math.Sqrt((px - projX) * (px - projX) + (py - projY) * (py - projY));
         }
 
+        #endregion
+
+        #region Context Menu
+
         private void ShowContextMenu(Point canvasPoint, NodeViewModel? node, EdgeViewModel? edge)
         {
+            // Close any existing context menu before opening a new one
+            if (_activeContextMenu != null)
+            {
+                _activeContextMenu.Close();
+                _activeContextMenu = null;
+            }
+
             var menu = new ContextMenu();
 
             if (node != null)
@@ -528,8 +790,22 @@ namespace DijkstraVisualization.Views
                 menu.Items.Add(addNodeItem);
             }
 
+            // Track this menu and clear reference when it closes
+            _activeContextMenu = menu;
+            menu.Closed += (s, e) =>
+            {
+                if (_activeContextMenu == menu)
+                {
+                    _activeContextMenu = null;
+                }
+            };
+
             menu.Open(this);
         }
+
+        #endregion
+
+        #region Edge Drawing Mode
 
         private void StartEdgeDrawing(NodeViewModel sourceNode)
         {
@@ -538,6 +814,8 @@ namespace DijkstraVisualization.Views
 
             if (_drawingLine != null)
             {
+                // Line will be positioned correctly in OnCanvasPointerMoved
+                // Initially hidden until cursor moves outside the source node
                 _drawingLine.IsVisible = false;
             }
         }
@@ -561,6 +839,7 @@ namespace DijkstraVisualization.Views
         private void CancelEdgeDrawing()
         {
             _isDrawingEdge = false;
+            _isShiftDraggingEdge = false;
             _edgeSourceNode = null;
 
             if (_drawingLine != null)
@@ -568,5 +847,7 @@ namespace DijkstraVisualization.Views
                 _drawingLine.IsVisible = false;
             }
         }
+
+        #endregion
     }
 }

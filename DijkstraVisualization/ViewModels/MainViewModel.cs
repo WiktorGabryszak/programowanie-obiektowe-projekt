@@ -28,6 +28,14 @@ namespace DijkstraVisualization.ViewModels
         private string? _errorMessage;
         private bool _showError;
 
+        private const int WaveAnimationSteps = 50;
+        private const int WaveStepDelayMs = 10;
+
+        // Pulse animation constants
+        private const int PulseAnimationSteps = 20;
+        private const int PulseStepDelayMs = 15;
+        private const double PulseMaxScale = 1.4;
+
         public MainViewModel(IDijkstraService dijkstraService)
         {
             _dijkstraService = dijkstraService ?? throw new ArgumentNullException(nameof(dijkstraService));
@@ -143,7 +151,12 @@ namespace DijkstraVisualization.ViewModels
                 return;
             }
 
-            if (_graph.Edges.Any(e => e.SourceNodeId == creation.SourceNodeId && e.TargetNodeId == creation.TargetNodeId))
+            // Check if edge already exists in either direction (undirected graph)
+            var edgeExists = _graph.Edges.Any(e => 
+                (e.SourceNodeId == creation.SourceNodeId && e.TargetNodeId == creation.TargetNodeId) ||
+                (e.SourceNodeId == creation.TargetNodeId && e.TargetNodeId == creation.SourceNodeId));
+
+            if (edgeExists)
             {
                 ShowErrorMessage("Edge between these nodes already exists!");
                 return;
@@ -250,8 +263,6 @@ namespace DijkstraVisualization.ViewModels
             EndNode = null;
             SelectedNode = null;
             _nodeCounter = 0;
-
-            ResetNodeStates();
         }
 
         private bool CanClearGraph() => !IsVisualizing;
@@ -266,8 +277,7 @@ namespace DijkstraVisualization.ViewModels
             }
 
             CancelVisualization();
-            ResetNodeStates();
-            ResetEdgeStates();
+            ResetVisualizationStates();
 
             _visualizationCts = new CancellationTokenSource();
             var token = _visualizationCts.Token;
@@ -276,34 +286,29 @@ namespace DijkstraVisualization.ViewModels
             try
             {
                 var intervalMs = (int)(AnimationInterval * 1000);
-                var stopwatch = new Stopwatch();
 
                 foreach (var step in _dijkstraService.GetVisualizationSteps(_graph, StartNode.Id, EndNode.Id))
                 {
                     token.ThrowIfCancellationRequested();
-                    stopwatch.Restart();
-
-                    ApplyStep(step);
-
-                    stopwatch.Stop();
-                    var elapsed = (int)stopwatch.ElapsedMilliseconds;
+                    
+                    var stepStopwatch = Stopwatch.StartNew();
+                    
+                    await ApplyStepAsync(step, token);
+                    
+                    stepStopwatch.Stop();
+                    
+                    // Wait remaining time to maintain consistent interval
+                    var elapsed = (int)stepStopwatch.ElapsedMilliseconds;
                     var delay = intervalMs - elapsed;
                     if (delay > 0)
                     {
                         await Task.Delay(delay, token).ConfigureAwait(true);
                     }
                 }
-
-                var result = _dijkstraService.CalculatePath(_graph, StartNode.Id, EndNode.Id);
-                ApplyPathResult(result);
-
-                if (!result.PathFound)
-                {
-                    ShowErrorMessage("No path found between selected nodes!");
-                }
             }
             catch (OperationCanceledException)
             {
+                // User cancelled - ignore
             }
             finally
             {
@@ -329,55 +334,300 @@ namespace DijkstraVisualization.ViewModels
             ShowError = false;
         }
 
-        private void ApplyStep(AlgorithmStep step)
+        #region Visualization Step Application
+
+        private async Task ApplyStepAsync(AlgorithmStep step, CancellationToken token)
         {
-            var visited = new HashSet<Guid>(step.VisitedNodes);
-            foreach (var node in Nodes)
+            switch (step.StepType)
             {
-                node.IsVisited = visited.Contains(node.Id);
-                node.IsCurrentNode = node.Id == step.CurrentNodeId;
+                case AlgorithmStepType.Initialize:
+                    ApplyInitializeStep(step);
+                    break;
+
+                case AlgorithmStepType.VisitNode:
+                    ApplyVisitNodeStep(step, token);
+                    break;
+
+                case AlgorithmStepType.FinalizeNode:
+                    ApplyFinalizeNodeStep(step);
+                    break;
+
+                case AlgorithmStepType.RelaxEdges:
+                    await ApplyRelaxEdgesStepAsync(step, token);
+                    break;
+
+                case AlgorithmStepType.Complete:
+                    ApplyCompleteStep(step);
+                    break;
             }
         }
 
-        private void ApplyPathResult(PathResult result)
+        private void ApplyInitializeStep(AlgorithmStep step)
         {
-            var pathNodes = result.PathFound ? new HashSet<Guid>(result.NodePath) : new HashSet<Guid>();
-
+            // Show distance labels on all nodes
             foreach (var node in Nodes)
             {
-                node.IsOnShortestPath = result.PathFound && pathNodes.Contains(node.Id);
+                node.ShowDistanceLabel = true;
+                
+                if (step.CurrentDistances.TryGetValue(node.Id, out var distance))
+                {
+                    node.SetDistance(distance);
+                }
+            }
+        }
+
+        private async Task ApplyVisitNodeStep(AlgorithmStep step, CancellationToken token)
+        {
+            // Find the new current node
+            if (!_nodeLookup.TryGetValue(step.CurrentNodeId, out var newCurrentNode))
+            {
+                return;
             }
 
-            if (result.PathFound && result.NodePath.Count > 1)
+            // Find the previous current node (if any)
+            var previousCurrentNode = Nodes.FirstOrDefault(n => n.IsCurrentNode);
+
+            // If there's a previous node, animate the transition
+            if (previousCurrentNode != null && previousCurrentNode != newCurrentNode)
             {
-                for (int i = 0; i < result.NodePath.Count - 1; i++)
+                // First, mark the previous node as visited (this will show green border when yellow moves away)
+                // But don't clear IsCurrentNode yet - yellow border stays on old node during this
+                previousCurrentNode.IsVisited = true;
+                
+                // Animate the transition (yellow border stays on old node during this)
+                await AnimateBorderTransitionAsync(previousCurrentNode, newCurrentNode, token);
+                
+                // Now remove yellow border from previous node (revealing green border underneath)
+                previousCurrentNode.IsCurrentNode = false;
+            }
+
+            // Set new current node (yellow border)
+            newCurrentNode.IsCurrentNode = true;
+
+            // Update distances
+            UpdateNodeDistances(step.CurrentDistances);
+
+            // Update visited state from finalized nodes
+            foreach (var nodeId in step.FinalizedNodes)
+            {
+                if (_nodeLookup.TryGetValue(nodeId, out var visitedNode))
                 {
-                    var fromId = result.NodePath[i];
-                    var toId = result.NodePath[i + 1];
-                    var edge = Edges.FirstOrDefault(e => e.Source.Id == fromId && e.Target.Id == toId);
+                    visitedNode.IsVisited = true;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Animates a smooth transition of the yellow border from one node to another.
+        /// During this animation, the old node keeps its yellow border, then reveals green underneath.
+        /// </summary>
+        private async Task AnimateBorderTransitionAsync(NodeViewModel fromNode, NodeViewModel toNode, CancellationToken token)
+        {
+            const int transitionSteps = 15;
+            const int transitionDelayMs = 20;
+
+            // Smooth transition delay - yellow border stays on old node, then jumps to new node
+            for (int i = 0; i < transitionSteps; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                await Task.Delay(transitionDelayMs, token).ConfigureAwait(true);
+            }
+        }
+
+        private void ApplyFinalizeNodeStep(AlgorithmStep step)
+        {
+            // Mark node as finalized/visited (green border)
+            if (_nodeLookup.TryGetValue(step.CurrentNodeId, out var node))
+            {
+                // Don't clear IsCurrentNode here - it's handled in ApplyVisitNodeStep
+                // Just ensure it's marked as visited
+                node.IsVisited = true;
+            }
+
+            // Update all visited nodes
+            foreach (var nodeId in step.FinalizedNodes)
+            {
+                if (_nodeLookup.TryGetValue(nodeId, out var visitedNode))
+                {
+                    visitedNode.IsVisited = true;
+                }
+            }
+        }
+
+        private async Task ApplyRelaxEdgesStepAsync(AlgorithmStep step, CancellationToken token)
+        {
+            var edgesToAnimate = new List<EdgeViewModel>();
+
+            // Mark ALL edges being checked as relaxing (for wave animation)
+            foreach (var (edgeId, (neighborId, _, isDirectionReversed)) in step.RelaxedEdges)
+            {
+                if (_edgeLookup.TryGetValue(edgeId, out var edge))
+                {
+                    edge.IsBeingRelaxed = true;
+                    edge.RelaxationProgress = 0;
+                    edge.RelaxationDirectionReversed = isDirectionReversed;
+                    edgesToAnimate.Add(edge);
+                }
+            }
+
+            // Animate wave effect through all edges
+            for (int i = 1; i <= WaveAnimationSteps; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                
+                var progress = (double)i / WaveAnimationSteps;
+                foreach (var edge in edgesToAnimate)
+                {
+                    edge.RelaxationProgress = progress;
+                }
+                
+                await Task.Delay(WaveStepDelayMs, token).ConfigureAwait(true);
+            }
+
+            // Clear relaxation state
+            foreach (var edge in edgesToAnimate)
+            {
+                edge.IsBeingRelaxed = false;
+                edge.RelaxationProgress = 0;
+                edge.RelaxationDirectionReversed = false;
+            }
+
+            // Update distances on target nodes after wave completes
+            // Track which nodes got updated for pulse animation
+            var updatedNodes = new List<NodeViewModel>();
+            
+            // Only update the neighbor nodes that were actually checked in this step
+            foreach (var (edgeId, (neighborId, newDistance, _)) in step.RelaxedEdges)
+            {
+                if (_nodeLookup.TryGetValue(neighborId, out var node))
+                {
+                    var wasUpdated = node.SetDistance(newDistance);
+                    if (wasUpdated)
+                    {
+                        node.TriggerDistanceUpdateAnimation();
+                        updatedNodes.Add(node);
+                    }
+                }
+            }
+
+            // Animate pulse effect on updated nodes
+            if (updatedNodes.Count > 0)
+            {
+                await AnimatePulseAsync(updatedNodes, token);
+            }
+        }
+
+        /// <summary>
+        /// Animates a pulse effect on the distance labels of updated nodes.
+        /// </summary>
+        private async Task AnimatePulseAsync(List<NodeViewModel> nodes, CancellationToken token)
+        {
+            // Expand phase
+            for (int i = 1; i <= PulseAnimationSteps / 2; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                
+                var progress = (double)i / (PulseAnimationSteps / 2);
+                var scale = 1.0 + (PulseMaxScale - 1.0) * progress;
+                
+                foreach (var node in nodes)
+                {
+                    node.DistanceLabelScale = scale;
+                }
+                
+                await Task.Delay(PulseStepDelayMs, token).ConfigureAwait(true);
+            }
+
+            // Contract phase
+            for (int i = 1; i <= PulseAnimationSteps / 2; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                
+                var progress = (double)i / (PulseAnimationSteps / 2);
+                var scale = PulseMaxScale - (PulseMaxScale - 1.0) * progress;
+                
+                foreach (var node in nodes)
+                {
+                    node.DistanceLabelScale = scale;
+                }
+                
+                await Task.Delay(PulseStepDelayMs, token).ConfigureAwait(true);
+            }
+
+            // Clear animation state
+            foreach (var node in nodes)
+            {
+                node.ClearDistanceUpdateAnimation();
+            }
+        }
+
+        private void ApplyCompleteStep(AlgorithmStep step)
+        {
+            // Clear yellow border from all nodes at the end
+            foreach (var node in Nodes)
+            {
+                node.IsCurrentNode = false;
+            }
+
+            // Highlight shortest path
+            if (step.PathFound && step.FinalPath.Count > 0)
+            {
+                var pathSet = new HashSet<Guid>(step.FinalPath);
+
+                // Highlight nodes on path
+                foreach (var node in Nodes)
+                {
+                    node.IsOnShortestPath = pathSet.Contains(node.Id);
+                }
+
+                // Highlight edges on path (check both directions since edges are undirected)
+                for (int i = 0; i < step.FinalPath.Count - 1; i++)
+                {
+                    var fromId = step.FinalPath[i];
+                    var toId = step.FinalPath[i + 1];
+
+                    // Find edge in either direction
+                    var edge = Edges.FirstOrDefault(e => 
+                        (e.Source.Id == fromId && e.Target.Id == toId) ||
+                        (e.Source.Id == toId && e.Target.Id == fromId));
+                    
                     if (edge != null)
                     {
                         edge.IsOnShortestPath = true;
                     }
                 }
             }
-        }
-
-        private void ResetNodeStates()
-        {
-            foreach (var node in Nodes)
+            else
             {
-                node.IsVisited = false;
-                node.IsCurrentNode = false;
-                node.IsOnShortestPath = false;
+                ShowErrorMessage("No path found between selected nodes!");
             }
         }
 
-        private void ResetEdgeStates()
+        private void UpdateNodeDistances(Dictionary<Guid, double> distances)
         {
+            foreach (var (nodeId, distance) in distances)
+            {
+                if (_nodeLookup.TryGetValue(nodeId, out var node))
+                {
+                    node.SetDistance(distance);
+                }
+            }
+        }
+
+        #endregion
+
+        #region State Management
+
+        private void ResetVisualizationStates()
+        {
+            foreach (var node in Nodes)
+            {
+                node.ResetVisualizationState();
+            }
+
             foreach (var edge in Edges)
             {
-                edge.IsOnShortestPath = false;
+                edge.ResetVisualizationState();
             }
         }
 
@@ -396,6 +646,8 @@ namespace DijkstraVisualization.ViewModels
                 _visualizationCts.Cancel();
             }
         }
+
+        #endregion
 
         public void Dispose()
         {
