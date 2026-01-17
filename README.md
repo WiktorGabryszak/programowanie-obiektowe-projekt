@@ -1,296 +1,144 @@
 ﻿# DijkstraVisualizer
 
-A desktop application for visualizing Dijkstra's shortest path algorithm on user-defined graphs, built with **C#** and **Avalonia UI**.
+Aplikacja desktopowa do wizualizacji algorytmu Dijkstry na grafach. Stworzona przy użyciu **C#** i **Avalonia UI**.
 
-![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)
-![Avalonia](https://img.shields.io/badge/Avalonia-11.3.10-8B44AC?style=flat)
-![License](https://img.shields.io/badge/license-MIT-green)
+## O projekcie
 
-## 📋 Overview
+DijkstraVisualizer to interaktywne narzędzie do wizualizacji algorytmu znajdowania najkrótszej ścieżki między dwoma węzłami w grafie. Użytkownik może tworzyć własne grafy i obserwować działanie algorytmu krok po kroku.
 
-DijkstraVisualizer is an interactive graph visualization tool that demonstrates Dijkstra's algorithm for finding the shortest path between two nodes. The application allows users to create custom graphs by adding nodes and weighted edges, then visualizes the algorithm's step-by-step execution with real-time animations.
+## Funkcjonalność
 
-### Key Features
+- Tworzenie grafów przez dodawanie węzłów i krawędzi
+- Wizualizacja algorytmu Dijkstry krok po kroku z animacjami
+- Regulowana prędkość animacji
+- Kolorowe oznaczenia węzłów:
+  - **Zielony**: węzeł początkowy
+  - **Pomarańczowy**: węzeł docelowy
+  - **Czerwony**: węzły odwiedzone
+  - **Jasnozielony**: aktualnie przetwarzany węzeł
+  - **Złoty**: najkrótsza ścieżka
+- Edycja położenia węzłów, wag krawędzi i nazw
+- Automatyczne wykrywanie niespójnych grafów
 
-- **Interactive Graph Creation**: Add, edit, and remove nodes and edges with an intuitive canvas interface
-- **Real-Time Visualization**: Watch Dijkstra's algorithm execute step-by-step with animated transitions
-- **Customizable Animation Speed**: Adjust visualization speed from instant to slow motion
-- **Visual Feedback**: Color-coded nodes and edges show algorithm state:
-  - **Forest Green**: Start node
-  - **Orange Red**: End node  
-  - **Crimson**: Visited nodes
-  - **Lime Green**: Currently processing node
-  - **Gold**: Shortest path found
-- **Graph Editing**: Modify node positions, edge weights, and names dynamically
-- **Path Validation**: Automatic detection of disconnected graphs and unreachable nodes
+## Architektura
 
-## 🏗️ Architecture
+Aplikacja opiera się na zasadach **Clean Architecture**, wzorcu **MVVM (Model-View-ViewModel)** oraz zasadach **SOLID**.
 
-The application follows **Clean Architecture** principles with strict adherence to **MVVM (Model-View-ViewModel)** pattern and **SOLID** principles.
-
-### Project Structure
+### Struktura projektu
 
 ```
 DijkstraVisualization/
-├── Models/                    # Domain Layer (POCOs)
-│   ├── NodeModel.cs          # Node entity
-│   ├── EdgeModel.cs          # Edge entity
-│   ├── GraphModel.cs         # Graph aggregate
-│   ├── AlgorithmStep.cs      # Algorithm state snapshot
-│   ├── PathResult.cs         # Path calculation result
-│   └── AlgorithmResult.cs    # Extended result with execution time
+├── Models/                    # Warstwa domeny
+│   ├── NodeModel.cs          # Model węzła
+│   ├── EdgeModel.cs          # Model krawędzi
+│   ├── GraphModel.cs         # Model grafu
+│   ├── AlgorithmStep.cs      # Stan algorytmu
+│   └── PathResult.cs         # Wynik obliczeń
 │
-├── Services/                  # Business Logic Layer
-│   ├── IDijkstraService.cs   # Service interface
-│   └── DijkstraService.cs    # Dijkstra algorithm implementation
+├── Services/                  # Logika biznesowa
+│   ├── IDijkstraService.cs   # Interfejs serwisu
+│   └── DijkstraService.cs    # Implementacja algorytmu
 │
-├── ViewModels/                # Presentation Layer
-│   ├── ViewModelBase.cs      # Base ViewModel
-│   ├── MainViewModel.cs      # Main window logic & commands
-│   ├── NodeViewModel.cs      # Node presentation logic
-│   ├── EdgeViewModel.cs      # Edge presentation logic & geometry
-│   └── Converters.cs         # Value converters for UI binding
+├── ViewModels/                # Warstwa prezentacji
+│   ├── MainViewModel.cs      # Logika głównego okna
+│   ├── NodeViewModel.cs      # Logika prezentacji węzła
+│   └── EdgeViewModel.cs      # Logika prezentacji krawędzi
 │
-└── Views/                     # UI Layer (XAML)
-    ├── MainWindow.axaml      # Main application window
-    ├── EditNodeDialog.axaml  # Node editing dialog
-    └── EditEdgeDialog.axaml  # Edge editing dialog
+└── Views/                     # Warstwa interfejsu (XAML)
+    ├── MainWindow.axaml      # Główne okno aplikacji
+    └── Edit*Dialog.axaml     # Okna dialogowe
 
-DijkstraVisualization.Tests/  # Unit Tests
+DijkstraVisualization.Tests/  # Testy jednostkowe
 └── Services/
     └── DijkstraServiceTests.cs
 ```
 
-### Architectural Layers
+## Rozpoczęcie pracy
 
-#### 1. Domain Layer (Models)
-Pure POCOs with no dependencies on UI or infrastructure:
-- **NodeModel**: `Guid Id`, `string Name`, `double X`, `double Y`
-- **EdgeModel**: `Guid Id`, `Guid SourceNodeId`, `Guid TargetNodeId`, `double Weight`, `string Name`
-- **GraphModel**: Aggregates `List<NodeModel>` and `List<EdgeModel>`
-- **AlgorithmStep**: Algorithm state for visualization
-- **PathResult**: Path calculation result with metrics
+### Wymagania
 
-#### 2. Service Layer
-Implements business logic with dependency injection:
-- **IDijkstraService**: 
-  - `AlgorithmResult CalculatePath(GraphModel, Guid startId, Guid endId)`
-  - `IEnumerable<AlgorithmStep> GetVisualizationSteps(GraphModel, Guid startId, Guid endId)` (uses `yield return`)
+- **.NET 8.0 SDK** lub nowszy
+- **IDE**: Visual Studio 2022, JetBrains Rider lub VS Code
+- **System**: Windows, macOS lub Linux
 
-#### 3. Presentation Layer (ViewModels)
-Implements `INotifyPropertyChanged` using **CommunityToolkit.Mvvm**:
-- **MainViewModel**: Graph state management, commands, async visualization orchestration
-- **NodeViewModel**: Node presentation, visual state (selected, visited, on path)
-- **EdgeViewModel**: Edge presentation, dynamic geometry calculations (position, angle, length)
+### Instalacja
 
-#### 4. View Layer
-XAML-only views with minimal code-behind for platform-specific operations
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- **.NET 8.0 SDK** or newer
-- **IDE**: Visual Studio 2022, JetBrains Rider, or VS Code
-- **OS**: Windows, macOS, or Linux (Avalonia is cross-platform)
-
-### Installation
-
-1. **Clone the repository**
+1. Sklonuj repozytorium:
    ```bash
    git clone <repository-url>
    cd programowanie-obiektowe-projekt
    ```
 
-2. **Restore dependencies**
+2. Przywróć zależności:
    ```bash
    dotnet restore
    ```
 
-3. **Build the solution**
+3. Zbuduj rozwiązanie:
    ```bash
    dotnet build
    ```
 
-4. **Run the application**
+4. Uruchom aplikację:
    ```bash
    dotnet run --project DijkstraVisualization
    ```
 
-### Running Tests
+### Uruchomienie testów
 
 ```bash
 dotnet test
 ```
 
-The project includes unit tests for the Dijkstra service implementation using **xUnit** and **FluentAssertions**.
+## Instrukcja użytkowania
 
-## 🎮 Usage Guide
+### Tworzenie grafu
 
-### Creating a Graph
+1. **Dodawanie węzłów**: Kliknij prawym przyciskiem myszy na canvas
+2. **Dodawanie krawędzi**: Kliknij węzeł źródłowy, następnie węzeł docelowy
+3. **Edycja**: Kliknij węzeł lub krawędź, aby otworzyć okno edycji
+4. **Przesuwanie**: Przeciągnij węzły, aby zmienić ich położenie
 
-1. **Add Nodes**: Right-click on the canvas to add a new node at the cursor position
-2. **Add Edges**: 
-   - Click on a source node
-   - Click on a target node
-   - Edge dialog will appear to set weight and name
-3. **Edit Elements**: Click on nodes or edges to open edit dialogs
-4. **Move Nodes**: Drag nodes to reposition them (edges update automatically)
+### Uruchomienie algorytmu
 
-### Running the Algorithm
+1. Kliknij prawym przyciskiem na węzeł → "Set as Start"
+2. Kliknij prawym przyciskiem na inny węzeł → "Set as End"
+3. Ustaw prędkość animacji suwakiem (0-3 sekundy)
+4. Kliknij przycisk "Start"
+5. Obserwuj działanie algorytmu
 
-1. **Set Start Node**: Right-click a node → "Set as Start"
-2. **Set End Node**: Right-click a node → "Set as End"
-3. **Adjust Speed**: Use the animation speed slider (0-3 seconds per step)
-4. **Start**: Click the "▶ Start" button
-5. **Watch**: Observe the algorithm's step-by-step execution
-6. **Result**: Final path highlights in gold if found
+## Technologie
 
-### Controls
+- **C# 12.0** - język programowania
+- **.NET 8.0** - framework aplikacji
+- **Avalonia UI 11.3.10** - framework interfejsu użytkownika
+- **CommunityToolkit.Mvvm 8.2.1** - narzędzia MVVM
+- **xUnit** - framework testowy
+- **FluentAssertions** - biblioteka asercji
 
-- **▶ Start**: Execute Dijkstra's algorithm visualization
-- **🗑️ Clear**: Reset the entire graph
-- **Speed Slider**: Adjust animation interval (0-3 seconds)
-- **Right-Click Context Menu**: Node operations (set start/end, delete)
+## Zasady projektowe
 
-## 🛠️ Technology Stack
+Aplikacja została zaprojektowana zgodnie z:
 
-| Technology | Purpose | Version |
-|------------|---------|---------|
-| **C#** | Programming language | 12.0 |
-| **.NET** | Application framework | 8.0 |
-| **Avalonia UI** | Cross-platform UI framework | 11.3.10 |
-| **CommunityToolkit.Mvvm** | MVVM helpers | 8.2.1 |
-| **xUnit** | Unit testing framework | Latest |
-| **FluentAssertions** | Assertion library | Latest |
+- **SOLID** - Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+- **MVVM** - separacja modelu, widoku i logiki prezentacji
+- **Clean Architecture** - oddzielenie warstw domenowej, biznesowej i prezentacji
+- **Dependency Injection** - wstrzykiwanie zależności przez konstruktor
 
-### Key Dependencies
+## Algorytm Dijkstry
 
-```xml
-<PackageReference Include="Avalonia" Version="11.3.10" />
-<PackageReference Include="Avalonia.Desktop" Version="11.3.10" />
-<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.10" />
-<PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.1" />
-```
+Implementacja wykorzystuje kolejkę priorytetową (PriorityQueue):
+- **Złożoność czasowa**: O((V + E) log V), gdzie V = wierzchołki, E = krawędzie
+- **Złożoność pamięciowa**: O(V)
 
-## 📐 Design Principles
+## Testy
 
-### SOLID Principles
+Projekt zawiera testy jednostkowe obejmujące:
+- Obliczanie najkrótszej ścieżki w grafie liniowym
+- Obsługę niespójnych grafów
+- Wybór najtańszej ścieżki spośród wielu możliwości
+- Przypadki brzegowe (węzeł startowy = węzeł końcowy)
 
-- **Single Responsibility**: Each class has one reason to change
-  - `DijkstraService` only handles algorithm logic
-  - `NodeViewModel` only handles node presentation
-  - `MainViewModel` orchestrates graph operations
+## Licencja
 
-- **Open/Closed**: Extensible through interfaces
-  - `IDijkstraService` allows alternative implementations
-  - ViewModels can be extended without modifying base logic
-
-- **Liskov Substitution**: Consistent interface contracts
-  - `AlgorithmResult` extends `PathResult` without breaking expectations
-
-- **Interface Segregation**: Focused interfaces
-  - `IDijkstraService` provides only necessary methods
-
-- **Dependency Inversion**: Depend on abstractions
-  - `MainViewModel` depends on `IDijkstraService` interface
-  - Constructor injection for testability
-
-### MVVM Pattern
-
-- **Models**: Pure domain objects, no UI dependencies
-- **Views**: XAML-only, declarative UI definitions
-- **ViewModels**: Presentation logic, state management, commands
-- **Binding**: Data flows via `INotifyPropertyChanged`
-
-### Big Design Up Front (BDUF)
-
-The architecture was designed completely before implementation:
-1. Domain model definition
-2. Service interface contracts
-3. ViewModel structure and responsibilities
-4. View composition and data templates
-
-## 🧪 Testing
-
-Unit tests cover the core algorithm implementation:
-
-```csharp
-[Fact]
-public void CalculatePath_WithLinearGraph_ReturnsShortestPath()
-{
-    // Arrange: A -> B -> C
-    var result = service.CalculatePath(graph, nodeA.Id, nodeC.Id);
-    
-    // Assert
-    result.PathFound.Should().BeTrue();
-    result.TotalCost.Should().Be(5);
-    result.NodePath.Should().Equal(nodeA.Id, nodeB.Id, nodeC.Id);
-}
-```
-
-Test coverage includes:
-- ✅ Linear path calculation
-- ✅ Disconnected graph handling
-- ✅ Preferring cheaper paths over shorter ones
-- ✅ Start equals end edge case
-- ✅ Non-null result guarantees
-
-## 🎨 Visual Design
-
-The application uses a dark theme with high-contrast colors:
-
-- **Background**: Deep blue (#0f0f23, #1a1a2e)
-- **Canvas**: Dark navy (#1a1a2e)
-- **Toolbar**: Charcoal (#16213e)
-- **Start Button**: Green (#4CAF50)
-- **Clear Button**: Red (#E53935)
-
-Node color states are carefully chosen for accessibility and clarity during algorithm visualization.
-
-## 📊 Algorithm Complexity
-
-**Dijkstra's Algorithm** (with Priority Queue):
-- **Time Complexity**: O((V + E) log V) where V = vertices, E = edges
-- **Space Complexity**: O(V) for distance and previous node tracking
-
-The implementation uses .NET's built-in `PriorityQueue<T, TPriority>` for efficient min-heap operations.
-
-## 🔮 Future Enhancements
-
-Potential improvements:
-- [ ] Graph save/load functionality (JSON serialization)
-- [ ] Undo/Redo operations
-- [ ] Additional algorithms (A*, Bellman-Ford, Floyd-Warshall)
-- [ ] Directed vs undirected graph toggle
-- [ ] Graph auto-layout algorithms
-- [ ] Performance metrics dashboard
-- [ ] Export visualization as video/GIF
-
-## 📝 License
-
-This project is licensed under the MIT License.
-
-## 👥 Contributing
-
-Contributions are welcome! Please follow these guidelines:
-1. Fork the repository
-2. Create a feature branch
-3. Follow SOLID and MVVM principles
-4. Add unit tests for new features
-5. Submit a pull request
-
-## 📚 References
-
-- [Dijkstra's Algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
-- [Avalonia UI Documentation](https://docs.avaloniaui.net/)
-- [MVVM Pattern](https://docs.microsoft.com/en-us/dotnet/architecture/maui/mvvm)
-- [SOLID Principles](https://en.wikipedia.org/wiki/SOLID)
-
-## 🙋 Support
-
-For issues, questions, or suggestions, please open an issue on the repository.
-
----
-
-**Built with ❤️ using C# and Avalonia UI**
+Projekt udostępniony na licencji MIT.
