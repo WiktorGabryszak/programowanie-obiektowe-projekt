@@ -53,43 +53,6 @@ DijkstraVisualization.Tests/  # Testy jednostkowe
     └── DijkstraServiceTests.cs
 ```
 
-## Rozpoczęcie pracy
-
-### Wymagania
-
-- **.NET 8.0 SDK** lub nowszy
-- **IDE**: Visual Studio 2022, JetBrains Rider lub VS Code
-- **System**: Windows, macOS lub Linux
-
-### Instalacja
-
-1. Sklonuj repozytorium:
-   ```bash
-   git clone <repository-url>
-   cd programowanie-obiektowe-projekt
-   ```
-
-2. Przywróć zależności:
-   ```bash
-   dotnet restore
-   ```
-
-3. Zbuduj rozwiązanie:
-   ```bash
-   dotnet build
-   ```
-
-4. Uruchom aplikację:
-   ```bash
-   dotnet run --project DijkstraVisualization
-   ```
-
-### Uruchomienie testów
-
-```bash
-dotnet test
-```
-
 ## Instrukcja użytkowania
 
 ### Tworzenie grafu
