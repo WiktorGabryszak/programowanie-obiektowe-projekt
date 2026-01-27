@@ -659,15 +659,4 @@ namespace DijkstraVisualization.ViewModels
             _edgeLookup.Clear();
         }
     }
-
-    public readonly record struct NodePlacement(double X, double Y);
-    public readonly record struct EdgeCreation(Guid SourceNodeId, Guid TargetNodeId, double Weight, string? Name = null);
-    public readonly record struct TargetSelection(Guid NodeId, TargetKind Kind);
-
-    public enum TargetKind
-    {
-        Selection,
-        Start,
-        End
-    }
 }

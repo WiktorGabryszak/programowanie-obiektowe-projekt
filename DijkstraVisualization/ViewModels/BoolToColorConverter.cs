@@ -5,6 +5,9 @@ using Avalonia.Media;
 
 namespace DijkstraVisualization.ViewModels
 {
+    /// <summary>
+    /// Converts a boolean value to a color brush (LimeGreen when true, Gray when false).
+    /// </summary>
     public class BoolToColorConverter : IValueConverter
     {
         public static readonly BoolToColorConverter Instance = new();
@@ -18,27 +21,6 @@ namespace DijkstraVisualization.ViewModels
                     : new SolidColorBrush(Colors.Gray);
             }
             return new SolidColorBrush(Colors.Gray);
-        }
-
-        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-
-
-    public class AnimationSpeedConverter : IValueConverter
-    {
-        public static readonly AnimationSpeedConverter Instance = new();
-
-        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        {
-            if (value is double interval)
-            {
-                return interval < 0.01 ? "Instant" : $"{interval:F1}s";
-            }
-            return "0.0s";
         }
 
         public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
